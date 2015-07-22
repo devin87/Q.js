@@ -1,7 +1,9 @@
 ﻿//build 配置文件
 module.exports = {
     root: "../",
-    
+
+    noStore: true,
+
     concat: {
         title: "文件合并",
 
@@ -9,15 +11,15 @@ module.exports = {
 
         list: [
             {
-                src: [ "Q.js", "Q.Queue.js", "Q.query.js", "Q.core.js", "Q.dom.js", "Q.setTimer.js", "Q.event.js", "Q.ajax.js", "Q.$.js" ],
-                dest: "Q.js"
+                src: ["Q.js", "Q.Queue.js", "Q.query.js", "Q.core.js", "Q.dom.js", "Q.setTimer.js", "Q.event.js", "Q.ajax.js", "Q.$.js"],
+                dest: "/Q.js"
             },
             {
-                src: [ "Q.query.speedTest.js", "Q.query.js" ],
-                dest: "lib/Q.query.js"
+                src: ["Q.query.speedTest.js", "Q.query.js"],
+                dest: "/lib/Q.query.js"
             }
         ],
-        
+
         replace: [
             //移除\r字符
             [/\r/g, ""],
@@ -33,7 +35,7 @@ module.exports = {
             //cmd: "java -jar D:\\tools\\compiler.jar --js=%f.fullname% --js_output_file=%f.dest%",
             cmd: "uglifyjs %f.fullname% -o %f.dest% -c -m",
 
-            output:"dist",
+            output: "dist",
             match: "*.js",
 
             replace: [
@@ -51,6 +53,6 @@ module.exports = {
             ]
         }
     ],
-    
+
     run: ["concat", "cmd"]
 };

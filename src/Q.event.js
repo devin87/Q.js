@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/07/15 11:16
+* update:2015/07/22 14:49
 */
 (function (undefined) {
     "use strict";
@@ -132,28 +132,20 @@
     }
 
     var EVENT_TYPE_WHEEL = "onwheel" in document || Q.ie >= 9 ? "wheel" : (browser_gecko ? "DOMMouseScroll" : "mousewheel"),
-        SUPPORT_MOUSE_ENTER_LEAVE = "onmouseenter" in Q.html,
 
-        addEvent,
-        removeEvent;
+        SUPPORT_W3C_EVENT = !!document.addEventListener,
+        SUPPORT_MOUSE_ENTER_LEAVE = "onmouseenter" in Q.html;
 
-    //纯事件添加、移除接口,未做任何封装
-    if (document.addEventListener) {  //w3c
-        addEvent = function (ele, type, fn) {
-            ele.addEventListener(type, fn, false);
-        };
+    //添加DOM事件,未做任何封装
+    function addEvent(ele, type, fn) {
+        if (SUPPORT_W3C_EVENT) ele.addEventListener(type, fn, false);
+        else ele.attachEvent("on" + type, fn);  //注意:fn的this并不指向ele
+    }
 
-        removeEvent = function (ele, type, fn) {
-            ele.removeEventListener(type, fn, false);
-        };
-    } else if (document.attachEvent) {  //IE
-        addEvent = function (ele, type, fn) {
-            ele.attachEvent("on" + type, fn);
-        };
-
-        removeEvent = function (ele, type, fn) {
-            ele.detachEvent("on" + type, fn);
-        };
+    //移除DOM事件
+    function removeEvent(ele, type, fn) {
+        if (SUPPORT_W3C_EVENT) ele.removeEventListener(type, fn, false);
+        else ele.detachEvent("on" + type, fn);
     }
 
     //获取代理目标元素
@@ -269,11 +261,6 @@
     //批量移除事件
     //es:事件句柄对象列表  eg:es => [[ele, type, handle, selector],...]
     function remove_events(es, types, selector) {
-        if (isFunc(selector)) {
-            handle = selector;
-            selector = undefined;
-        }
-
         var list = es;
         if (types) {
             var map_type = types.split(' ').toMap(true);
