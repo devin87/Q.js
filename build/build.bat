@@ -1,3 +1,3 @@
 @echo off
-node ../../build.js/build/build.js
+node ../../Qbuild/build.js
 pause
