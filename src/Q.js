@@ -1,7 +1,7 @@
 ﻿/*
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * author:devin87@qq.com  
-* update:2015/07/15 11:16
+* update:2015/07/23 11:09
 */
 (function (undefined) {
     "use strict";
@@ -92,31 +92,49 @@
         return value !== undefined ? value : defValue;
     }
 
-    //检测是否为整数
-    function isInt(n, min) {
-        return typeof n == "number" && n === Math.floor(n) && (min === undefined || n >= min);
-    }
+    //检测是否为数字
+    function isNum(n, min, max) {
+        if (typeof n != "number") return false;
 
-    //检测是否为正整数
-    function isUInt(n) {
-        return isInt(n, 1);
-    }
-
-    //判断字符串是否是符合条件的数字
-    function checkNum(str, min, max, isInt) {
-        if (isNaN(str)) return false;
-
-        var n = +str;
-        if (isInt && n != Math.floor(n)) return false;
         if (min != undefined && n < min) return false;
         if (max != undefined && n > max) return false;
 
         return true;
     }
 
+    //检测是否为大于0的数字
+    function isUNum(n) {
+        return n !== 0 && isNum(n, 0);
+    }
+
+    //检测是否为整数
+    function isInt(n, min, max) {
+        return isNum(n, min, max) && n === Math.floor(n);
+    }
+
+    //检测是否为大于0的整数
+    function isUInt(n) {
+        return isInt(n, 1);
+    }
+
+    //判断字符串是否是符合条件的数字
+    function checkNum(str, min, max) {
+        return !isNaN(str) && isNum(+str, min, max);
+    }
+
     //判断字符串是否是符合条件的整数
     function checkInt(str, min, max) {
-        return checkNum(str, min, max, true);
+        return checkNum(str, min, max) && n === Math.floor(n);
+    }
+
+    //将字符串转为大写,若str不是字符串,则返回defValue
+    function toUpper(str, defValue) {
+        return typeof str == "string" ? str.toUpperCase() : defValue;
+    }
+
+    //将字符串转为小写,若str不是字符串,则返回defValue
+    function toLower(str, defValue) {
+        return typeof str == "string" ? str.toLowerCase() : defValue;
     }
 
     //转为数组
@@ -479,6 +497,11 @@
         toText: function () {
             return this.replace(/<br[^>]*>/ig, "\n").replace(/<script[^>]*>([^~]|~)+?<\/script>/gi, "").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
         }
+    });
+
+    String.alias({
+        toHtml: "htmlEncode",
+        toText: "htmlDecode"
     });
 
     //----------------------------- Number extend -----------------------------
@@ -986,10 +1009,15 @@
         isArrayLike: isArrayLike,
 
         def: def,
+        isNum: isNum,
+        isUNum: isUNum,
         isInt: isInt,
         isUInt: isUInt,
         checkNum: checkNum,
         checkInt: checkInt,
+
+        toUpper: toUpper,
+        toLower: toLower,
 
         toArray: toArray,
         makeArray: makeArray,

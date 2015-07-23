@@ -1,6 +1,6 @@
 ﻿/// <reference path="Q.$.js" />
 /*
-* Q.animate.js 计时器
+* Q.animate.js 动画
 * author:devin87@qq.com
 * update:2015/06/11 10:30
 */
