@@ -2,7 +2,7 @@
 /*
 * Q.dom.js DOM操作
 * author:devin87@qq.com
-* update:2015/07/15 11:16
+* update:2015/07/28 11:46
 */
 (function (undefined) {
     "use strict";
@@ -104,37 +104,33 @@
     }
 
     var SUPPORT_SET_CSS_NULL = support_set_css_null(),
+        CSS_FLOAT_NAME,
 
-        getComputedStyle = window.getComputedStyle,
-        _parseFloat = parseFloat,
-
-        _CSS_FLOAT_NAME,
-        _getComputedStyle,
-        _getStyle;
-
+        getComputedStyle,
+        getStyleValue;
 
     //IE9+、w3c浏览器
-    if (getComputedStyle) {
-        _CSS_FLOAT_NAME = "cssFloat";
+    if (window.getComputedStyle) {
+        CSS_FLOAT_NAME = "cssFloat";
 
-        _getComputedStyle = function (ele) {
-            return getComputedStyle(ele, null);
+        getComputedStyle = function (ele) {
+            return window.getComputedStyle(ele, null);
         };
 
         //获取样式值
-        _getStyle = function (ele, styles, key) {
-            return styles[key != "float" ? key : _CSS_FLOAT_NAME];
+        getStyleValue = function (ele, styles, key) {
+            return styles[key != "float" ? key : CSS_FLOAT_NAME];
         };
     } else {
-        _CSS_FLOAT_NAME = "styleFloat";
+        CSS_FLOAT_NAME = "styleFloat";
 
         //IE6、7、8 etc.
-        _getComputedStyle = function (ele) {
+        getComputedStyle = function (ele) {
             return ele.currentStyle;
         };
 
         //单位转换
-        var _toPX = function (el, value) {
+        var toPX = function (el, value) {
             var style = el.style, left = style.left, rsLeft = el.runtimeStyle.left;
             el.runtimeStyle.left = el.currentStyle.left;
             style.left = value || 0;
@@ -151,19 +147,19 @@
             RE_OPACITY_VALUE = /opacity=([^)]*)/;
 
         //获取样式值
-        _getStyle = function (ele, styles, key) {
+        getStyleValue = function (ele, styles, key) {
             switch (key) {
                 case "opacity":
                     var m = styles.filter.match(RE_OPACITY_VALUE);
-                    return m ? (_parseFloat(m[1]) || 0) / 100 : 1;
-                case "float": return styles[_CSS_FLOAT_NAME];
+                    return m ? (parseFloat(m[1]) || 0) / 100 : 1;
+                case "float": return styles[CSS_FLOAT_NAME];
             }
 
             var value = styles[key];
 
             //转换可度量的值
             if (/(em|pt|mm|cm|pc|in|ex|rem|vw|vh|vm|ch|gr)$/.test(value)) {
-                return _toPX(ele, value);
+                return toPX(ele, value);
             }
 
             //转换百分比，不包括字体
@@ -182,31 +178,46 @@
     }
 
     //获取样式值并解析为数字
-    function _getStyleFloat(ele, key, styles) {
-        return _parseFloat(_getStyle(ele, styles || _getComputedStyle(ele), key)) || 0;
+    function getStyleFloat(ele, key, styles) {
+        return parseFloat(getStyleValue(ele, styles || getComputedStyle(ele), key)) || 0;
+    }
+
+    //获取元素尺寸,不考虑怪异模式
+    //type:  Width|Height
+    //level: 0,1,2 => width,width+padding,width+padding+border;height类似
+    function getSizeOf(ele, type, level) {
+        var cssText;
+        if (isHidden(ele)) {
+            cssText = ele.style.cssText;
+            ele.style.cssText = cssText + ";position: absolute; visibility: hidden;";
+            cssShow(ele);
+        }
+
+        var value;
+
+        if (level === 2) value = ele["offset" + type];
+        else {
+            value = ele["client" + type];
+
+            if (level !== 1 && value > 0) value -= type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
+
+            //is_quirk_mode && browser_ie < 10 => value=ele["offset" + type];
+            //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
+        }
+
+        if (cssText) ele.style.cssText = cssText;
+
+        return value;
     }
 
     //获取元素宽度
-    function getWidth(ele) {
-        if (is_quirk_mode && browser_ie < 10) return ele.offsetWidth;
-
-        var value = ele.clientWidth;
-
-        //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也获取不到宽度
-        if (!value) value = ele.offsetWidth - _getStyleFloat(ele, "borderLeftWidth") - _getStyleFloat(ele, "borderRightWidth");
-
-        return value - _getStyleFloat(ele, "paddingLeft") - _getStyleFloat(ele, "paddingRight");
+    function getWidth(ele, level) {
+        return getSizeOf(ele, "Width", level);
     }
 
     //获取元素高度
-    function getHeight(ele) {
-        if (is_quirk_mode && browser_ie < 10) return ele.offsetHeight;
-
-        var value = ele.clientHeight;
-
-        if (!value) value = ele.offsetWidth - _getStyleFloat(ele, "borderTopWidth") - _getStyleFloat(ele, "borderBottomWidth");
-
-        return value - _getStyleFloat(ele, "paddingTop") - _getStyleFloat(ele, "paddingBottom");
+    function getHeight(ele, level) {
+        return getSizeOf(ele, "Height", level);
     }
 
     //获取或设置元素的宽度
@@ -223,6 +234,26 @@
         setStyle(ele, "height", value + (flag ? getHeight(ele) : 0));
     }
 
+    //获取元素内部区域宽度(width+padding => clientWidth)
+    function innerWidth(ele) {
+        return getWidth(ele, 1);
+    }
+
+    //获取元素内部区域高度(height+padding => clientHeight)
+    function innerHeight(ele) {
+        return getHeight(ele, 1);
+    }
+
+    //获取元素外部区域宽度(width+padding+border => offsetWidth)
+    function outerWidth(ele) {
+        return getWidth(ele, 2);
+    }
+
+    //获取元素外部区域高度(height+padding+border => offsetHeight)
+    function outerHeight(ele) {
+        return getHeight(ele, 2);
+    }
+
     //获取或设置元素宽高
     function size(ele, w, h, flag) {
         if (w === undefined && h === undefined) return { width: getWidth(ele), height: getHeight(ele) };
@@ -233,16 +264,16 @@
 
     //获取元素当前样式(包括外部样式和嵌入样式)
     function getStyle(ele, key) {
-        if (key == "width") return getWidth(ele);
-        if (key == "height") return getHeight(ele);
+        if (key == "width") return getWidth(ele) + "px";
+        if (key == "height") return getHeight(ele) + "px";
 
-        return _getStyle(ele, _getComputedStyle(ele), camelCase(key));
+        return getStyleValue(ele, getComputedStyle(ele), camelCase(key));
     }
 
     //移除指定内联样式
     function removeCss(ele, key) {
         if (SUPPORT_SET_CSS_NULL) {
-            ele.style[key == "float" ? _CSS_FLOAT_NAME : camelCase(key)] = null;
+            ele.style[key == "float" ? CSS_FLOAT_NAME : camelCase(key)] = null;
             return;
         }
 
@@ -259,7 +290,7 @@
         if (value === null) return removeCss(ele, key);
 
         switch (key) {
-            case "float": ele.style[_CSS_FLOAT_NAME] = value; break;
+            case "float": ele.style[CSS_FLOAT_NAME] = value; break;
             case "opacity":
                 if (value <= 1) value *= 100;
                 if (ele.style.opacity != undefined) ele.style.opacity = value / 100;
@@ -296,7 +327,7 @@
         var node = createEle(nodeName);
         Q.body.appendChild(node);
 
-        display = getStyle(node, "display");
+        display = getComputedStyle(node).display;
         if (!display || display == "none") display = "block";
 
         Q.body.removeChild(node);
@@ -306,21 +337,21 @@
         return display;
     }
 
+    //元素是否隐藏
+    function isHidden(ele) {
+        return getComputedStyle(ele).display == "none";
+    }
+
     //显示元素
     function cssShow(ele) {
         ele.style.display = "";
 
-        if (getStyle(ele, "display") == "none") setStyle(ele, "display", defaultDisplay(ele.nodeName));
+        if (isHidden(ele)) setStyle(ele, "display", defaultDisplay(ele.nodeName));
     }
 
     //隐藏元素
     function cssHide(ele) {
         ele.style.display = "none";
-    }
-
-    //元素是否隐藏
-    function isHidden(ele) {
-        return getStyle(ele, "display") == "none";
     }
 
     //自动判断并切换元素显示或隐藏
@@ -372,8 +403,8 @@
         var offset = getOffset(ele),
             poffset = getOffset(pNode);
 
-        offset.left -= poffset.left + _getStyleFloat(pNode, "borderLeftWidth") + _getStyleFloat(ele, "marginLeft");
-        offset.top -= poffset.top + _getStyleFloat(pNode, "borderTopWidth") + _getStyleFloat(ele, "marginTop");
+        offset.left -= poffset.left + getStyleFloat(pNode, "borderLeftWidth") + getStyleFloat(ele, "marginLeft");
+        offset.top -= poffset.top + getStyleFloat(pNode, "borderTopWidth") + getStyleFloat(ele, "marginTop");
 
         return offset;
     }
@@ -622,6 +653,10 @@
 
         width: width,
         height: height,
+        innerWidth: innerWidth,
+        innerHeight: innerHeight,
+        outerWidth: outerWidth,
+        outerHeight: outerHeight,
         size: size,
 
         getStyle: getStyle,

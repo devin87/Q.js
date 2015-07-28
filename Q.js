@@ -1396,15 +1396,2211 @@
 })();
 
 ﻿/*
+* Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
+* author:devin87@qq.com  
+* update:2015/07/15 11:16
+*/
+(function (undefined) {
+    "use strict";
+
+    var isObject = Q.isObject,
+        isFunc = Q.isFunc,
+        isHttpURL = Q.isHttpURL,
+
+        getType = Q.type,
+
+        makeArray = Q.makeArray,
+        extend = Q.extend,
+
+        fire = Q.fire,
+        async = Q.async,
+
+        waitFor = Q.waitFor;
+
+    var window = Q.G,
+        document = window.document,
+
+        html = document.documentElement,
+        head = document.head || document.getElementsByTagName("head")[0],
+
+        is_quirk_mode = document.compatMode == "BackCompat",
+
+        body,
+        root;
+
+    var encode_url_param = encodeURIComponent;
+
+    //解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
+    function decode_url_param(param) {
+        try {
+            return decodeURIComponent(param);
+        } catch (e) {
+            return param;
+        }
+    }
+
+    //将对象转为查询字符串
+    function to_param_str(obj) {
+        if (!obj) return "";
+        if (typeof obj == "string") return obj;
+
+        var tmp = [];
+
+        Object.forEach(obj, function (k, v) {
+            if (typeof v != "function") tmp.push(encode_url_param(k) + "=" + (v != undefined ? encode_url_param(v) : ""));
+        });
+
+        return tmp.join("&");
+    }
+
+    //连接url和查询字符串
+    function join_url(url) {
+        var params = [], args = arguments;
+        for (var i = 1, len = args.length; i < len; i++) {
+            var param = args[i];
+            if (param) params.push(to_param_str(param));
+        }
+
+        var index = url.indexOf("#"), hash = "";
+        if (index != -1) {
+            hash = url.slice(index);
+            url = url.slice(0, index);
+        }
+
+        var str_params = params.join("&");
+        if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;
+
+        return url + hash;
+    }
+
+    //解析url参数 eg:url?id=1
+    function parse_url_params(search) {
+        if (!search) search = location.search;
+
+        if (search.charAt(0) == "?") search = search.slice(1);
+        if (!search) return {};
+
+        var list = search.split("&"), map = {};
+
+        for (var i = 0, len = list.length; i < len; i++) {
+            //跳过空字符串
+            if (!list[i]) continue;
+
+            var kv = list[i].split("="),
+                key = kv[0],
+                value = kv[1];
+
+            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
+        }
+
+        return map;
+    }
+
+    //编码或解码查询字符串
+    function process_url_param(obj) {
+        return isObject(obj) ? to_param_str(obj) : parse_url_params(obj);
+    }
+
+    //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
+    function parse_url_hash(hash) {
+        if (!hash) hash = location.hash;
+
+        var nav = hash, param;
+
+        if (hash) {
+            var index = hash.indexOf("!/");
+            if (index != -1) {
+                nav = hash.slice(0, index);
+                param = hash.slice(index + 2);
+            }
+        }
+
+        return { nav: nav, param: param };
+    }
+
+    //获取页名称
+    function get_page_name(path) {
+        var pathname = (path || location.pathname).toLowerCase().replace(/\\/g, "/"),
+            index = pathname.lastIndexOf("/");
+
+        return index != -1 ? pathname.slice(index + 1) : pathname;
+    }
+
+    var map_loaded_resource = {},
+        GUID_RESOURCE = Date.now(),
+
+        //LOAD_READY = 0,
+        LOAD_PROCESSING = 1,
+        LOAD_COMPLETE = 2;
+
+    //通过创建html标签以载入资源
+    //init:初始化函数,返回html标签 eg:init(url) -> script|link
+    function load_with_html(urls, callback, ops, init) {
+        var list = makeArray(urls), length = list.length;
+        if (length <= 0) return;
+
+        ops = ops || {};
+        if (isObject(callback)) {
+            ops = callback;
+            callback = ops.complete;
+        }
+
+        var create_element = ops.init || init,
+            count = 0;
+
+        var afterLoad = function (url, element) {
+            if (map_loaded_resource[url] == LOAD_COMPLETE) return;
+            map_loaded_resource[url] = LOAD_COMPLETE;
+
+            if (ops.removed) head.removeChild(element);
+
+            fire(ops.after, element, url, element);
+
+            doComplete(url);
+        };
+
+        //所有资源加载完毕
+        var doComplete = function (url) {
+            if (++count >= length) fire(callback, undefined, url);
+        };
+
+        list.forEach(function (url) {
+            if (ops.cache === false) url = join_url(url, "_=" + (++GUID_RESOURCE))
+
+            //避免加载重复资源
+            if (ops.once !== false && map_loaded_resource[url]) {
+                //已加载过,直接返回
+                if (map_loaded_resource[url] == LOAD_COMPLETE) return doComplete(url);
+
+                //正在加载,等待加载完成
+                return waitFor(function () {
+                    return map_loaded_resource[url] == LOAD_COMPLETE;
+                }, function () {
+                    doComplete(url);
+                });
+            }
+
+            var element = create_element(url);
+
+            map_loaded_resource[url] = LOAD_PROCESSING;
+
+            element.onreadystatechange = function () {
+                if (this.readyState == "loaded" || this.readyState == "complete") afterLoad(url, this);
+            };
+
+            element.onload = function () {
+                afterLoad(url, this);
+            };
+
+            fire(ops.before, element, url, element);
+
+            head.insertBefore(element);
+        });
+
+        list = null;
+    }
+
+    //加载脚本文件
+    //callback:回调函数
+    function loadJS(urls, callback, ops) {
+        load_with_html(urls, callback, ops, function (url) {
+            var script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = url;
+
+            return script;
+        });
+    }
+
+    //加载样式文件
+    //callback:回调函数
+    function loadCSS(urls, callback, ops) {
+        load_with_html(urls, callback, ops, function (url) {
+            var link = document.createElement("link");
+            link.type = "text/css";
+            link.rel = "stylesheet";
+            link.href = url;
+
+            return link;
+        });
+    }
+
+    //---------------------- browser.js ----------------------
+
+    var browser_ie,
+        engine_name = "unknown",
+        engine = {};
+
+    //ie11 开始不再保持向下兼容(例如,不再支持 ActiveXObject、attachEvent 等特性)
+    if (window.ActiveXObject || window.msIndexedDB) {
+        //window.ActiveXObject => ie10-
+        //window.msIndexedDB   => ie11+
+
+        engine.ie = browser_ie = document.documentMode || (!!window.XMLHttpRequest ? 7 : 6);
+        engine["ie" + (browser_ie < 6 ? 6 : browser_ie)] = true;
+
+        engine_name = "trident";
+    } else if (window.opera) {
+        engine_name = "opera";
+    } else if (window.mozInnerScreenX != undefined || isFunc(document.getBoxObjectFor)) {
+        //document.getBoxObjectFor => firefox3.5-
+        //window.mozInnerScreenX   => firefox3.6+
+        engine_name = "gecko";
+    } else if (window.WebKitPoint || window.devicePixelRatio) {
+        //window.WebKitPoint => chrome8+
+        engine_name = "webkit";
+    }
+
+    engine[engine_name] = true;
+
+    extend(Q, engine);
+
+    engine.name = engine_name;
+
+    //----------------------- JSON.js -----------------------
+
+    var has = Object.prototype.hasOwnProperty,
+
+        JSON_SPECIAL = { '\b': '\\b', '\t': '\\t', '\n': '\\n', '\f': '\\f', '\r': '\\r', '"': '\\"', '\\': '\\\\' },
+        JSON_NULL = "null";
+
+    //字符转义
+    function json_replace(c) {
+        //return JSON_SPECIAL[c]||'\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+        return JSON_SPECIAL[c] || c;
+    }
+
+    //json转化
+    function json_encode(obj) {
+        switch (getType(obj)) {
+            case "string": return '"' + obj.replace(/[\x00-\x1f\\"]/g, json_replace) + '"';
+            case "list":
+            case "array":
+                var tmp = [];
+                for (var i = 0, len = obj.length; i < len; i++) {
+                    if (typeof obj[i] !== "function") tmp.push(obj[i] != undefined ? json_encode(obj[i]) : JSON_NULL);
+                }
+                return "[" + tmp + "]";
+            case "object":
+            case "arguments":
+                var tmp = [];
+                for (var k in obj) {
+                    if (has.call(obj, k) && typeof obj[k] !== "function") tmp.push("\"" + k + "\":" + json_encode(obj[k]));
+                }
+                return "{" + tmp.toString() + "}";
+            case "boolean": return obj + "";
+            case "number": return isFinite(obj) ? obj + "" : JSON_NULL;
+            case "date": return isFinite(obj.valueOf()) ? obj.toUTC().format("yyyy-MM-ddThh:mm:ss.SZ") : JSON_NULL;
+            case "function": return;
+            default: return typeof obj == "object" ? "{}" : JSON_NULL;
+        }
+    }
+
+    //json解析
+    //secure:是否进行安全检测
+    function json_decode(text, secure) {
+        //安全检测
+        if (secure !== false && !/^[\],:{}\s]*$/.test(text.replace(/\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g, "@").replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, "]").replace(/(?:^|:|,)(?:\s*\[)+/g, ""))) throw new Error("JSON SyntaxError");
+        try {
+            return (new Function("return " + text))();
+        } catch (e) { }
+    }
+
+    if (!window.JSON) {
+        window.JSON = {
+            stringify: json_encode,
+            parse: json_decode
+        };
+    }
+
+    JSON.encode = json_encode;
+    JSON.decode = json_decode;
+
+    //------------------------------- cookie.js -------------------------------
+    //解析cookie值
+    function parseCookieValue(s) {
+        if (s.indexOf('"') === 0) s = s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+
+        return decode_url_param(s.replace(/\+/g, ' '));
+    }
+
+    //读取cookie值或返回整个对象
+    function getCookie(key) {
+        var result = key ? undefined : {},
+            cookies = document.cookie ? document.cookie.split('; ') : [];
+
+        for (var i = 0, len = cookies.length; i < len; i++) {
+            var parts = cookies[i].split('='),
+                name = decode_url_param(parts[0]),
+                cookie = parts.slice(1).join('=');
+
+            if (key && key === name) {
+                result = parseCookieValue(cookie);
+                break;
+            }
+
+            if (!key && (cookie = parseCookieValue(cookie)) !== undefined) {
+                result[name] = cookie;
+            }
+        }
+
+        return result;
+    }
+
+    //设置cookie
+    function setCookie(key, value, ops) {
+        ops = ops || {};
+
+        var expires = ops.expires;
+        if (typeof expires === "number") expires = new Date().add("d", expires);
+
+        document.cookie = [
+            encode_url_param(key), '=', encode_url_param(value),
+            expires ? '; expires=' + expires.toUTCString() : '',
+            ops.path ? '; path=' + ops.path : '',
+            ops.domain ? '; domain=' + ops.domain : '',
+            ops.secure ? '; secure' : ''
+        ].join('');
+    }
+
+    //移除cookie
+    function removeCookie(key) {
+        if (getCookie(key) != undefined) setCookie(key, '', { expires: -1 });
+    }
+
+    //清空cookie
+    function clearCookie() {
+        var cookies = document.cookie ? document.cookie.split('; ') : [];
+        for (var i = 0, len = cookies.length; i < len; i++) {
+            var parts = cookies[i].split('='),
+                key = decode_url_param(parts[0]);
+
+            removeCookie(key);
+        }
+    }
+
+    var cookie = {
+        get: getCookie,
+        set: setCookie,
+        remove: removeCookie,
+
+        clear: clearCookie
+    };
+
+    //------------------------------- Storage.js -------------------------------
+    //type:localStorage | sessionStorage
+    //useCookie:在其它特性不支持的情况下是否启用cookie模拟
+    function Storage(type, useCookie) {
+        var isLocal = type != "sessionStorage";
+
+        if (!isLocal && !location.host) return;
+
+        var STORE_NAME = type,
+
+            storage = window[STORE_NAME],
+            adapter = storage && "getItem" in storage ? "storage" : null;
+
+        if (!adapter) {
+            var userData = document.documentElement, TEST_KEY = "_Q_";
+
+            try {
+                //ie userdata
+                userData.addBehavior('#default#userdata');
+                //7天后过期
+                if (isLocal) userData.expires = new Date().add("d", 7).toUTCString();
+
+                STORE_NAME = location.hostname || "local";
+                userData.save(STORE_NAME);
+
+                storage = {
+                    getItem: function (key) {
+                        userData.load(STORE_NAME);
+                        return userData.getAttribute(key);
+                    },
+                    setItem: function (key, value) {
+                        userData.setAttribute(key, value);
+                        userData.save(STORE_NAME);
+                    },
+                    removeItem: function (key) {
+                        userData.removeAttribute(key);
+                        userData.save(STORE_NAME);
+                    },
+                    clear: function () {
+                        userData.load(STORE_NAME);
+
+                        var now = new Date().add("d", -1);
+                        userData.expires = now.toUTCString();
+                        userData.save(STORE_NAME);
+                    }
+                };
+
+                if (storage.getItem(TEST_KEY) === undefined) {
+                    storage.setItem(TEST_KEY, 1);
+                    storage.removeItem(TEST_KEY);
+                }
+
+                adapter = "userdata";
+            } catch (e) { }
+
+            //cookie 模拟
+            if (!adapter && useCookie) {
+
+                storage = {
+                    getItem: getCookie,
+                    //setItem: setCookie,
+                    setItem: isLocal ? function (key, value) {
+                        setCookie(key, value, { expires: 7 });
+                    } : setCookie,
+                    removeItem: removeCookie,
+                    clear: clearCookie
+                };
+
+                adapter = "cookie";
+            }
+        }
+
+        var support = !!adapter;
+
+        var store = {
+            //是否支持本地缓存
+            support: support,
+
+            //适配器:storage|userdata|cookie|null
+            adapter: adapter,
+
+            //获取本地缓存
+            get: function (key, isJSON) {
+                if (support) {
+                    try {
+                        var value = storage.getItem(key);
+                        return isJSON ? (value ? JSON.parse(value) : null) : value;
+                    } catch (e) { }
+                }
+
+                return undefined;
+            },
+            //设置本地缓存
+            set: function (key, value) {
+                if (support) {
+                    try {
+                        storage.setItem(key, typeof value == "string" ? value : JSON.stringify(value));
+                        return true;
+                    } catch (e) { }
+                }
+
+                return false;
+            },
+            //删除本地缓存
+            remove: function (key) {
+                if (support) {
+                    try {
+                        storage.removeItem(key);
+                        return true;
+                    } catch (e) { }
+                }
+
+                return false;
+            },
+            //清空本地缓存
+            clear: function () {
+                if (support) {
+                    try {
+                        storage.clear();
+                        return true;
+                    } catch (e) { }
+                }
+
+                return false;
+            }
+        };
+
+        return store;
+    }
+
+    //----------------------- view -----------------------
+
+    //页面视图
+    var view = {
+        //获取可用宽高
+        getSize: function () {
+            return { width: root.clientWidth, height: root.clientHeight };
+        },
+        //获取可用宽度
+        getWidth: function () {
+            return root.clientWidth;
+        },
+        //获取可用高度
+        getHeight: function () {
+            return root.clientHeight;
+        },
+        //获取页面宽度(包括滚动条)
+        getScrollWidth: function () {
+            //fix webkit bug:document.documentElement.scrollWidth等不能准确识别
+            return Math.max(html.scrollWidth, body.scrollWidth);
+        },
+        //获取页面高度(包括滚动条)
+        getScrollHeight: function () {
+            //fix webkit bug
+            return Math.max(html.scrollHeight, body.scrollHeight);
+        },
+        //获取左边的滚动距离
+        getScrollLeft: function () {
+            //fix webkit bug
+            return html.scrollLeft || body.scrollLeft;
+        },
+        //获取上边的滚动距离
+        getScrollTop: function () {
+            //fix webkit bug
+            return html.scrollTop || body.scrollTop;
+        }
+    };
+
+    //---------------------- 其它 ----------------------
+
+    //是否是输入按键
+    function isInputKey(code) {
+        //65-90   : A-Z
+        //32      : 空格键
+        //229     : 中文输入
+        //48-57   : 大键盘0-9
+        //96-105  : 小键盘0-9
+        //106-111 : * + Enter - . / 
+        if ((code >= 65 && code <= 90) || code == 32 || code == 229 || (code >= 48 && code <= 57) || (code >= 96 && code <= 111 && code != 108)) return true;
+
+        //186-192 : ;: =+ ,< -_ .> /? `~ 
+        //219-222 : [{ \| ]} '"
+        if ((code >= 186 && code <= 192) || (code >= 219 && code <= 222)) return true;
+
+        //8       : BackSpace
+        //46      : Delete   
+        if (code == 8 || code == 46) return true;
+
+        return false;
+    };
+
+    //判断指定路径与当前页面是否同域(包括协议检测 eg:http与https不同域)
+    function isSameHost(url) {
+        if (!isHttpURL(url)) return true;
+
+        var start = RegExp.lastMatch.length,
+            end = url.indexOf("/", start),
+            host = url.slice(0, end != -1 ? end : undefined);
+
+        return host.toLowerCase() == (location.protocol + "//" + location.host).toLowerCase();
+    }
+
+    //清除文本选区
+    function clearSelection() {
+        if (window.getSelection) {
+            var sel = getSelection();
+            if (sel.removeAllRanges) sel.removeAllRanges();
+            else if (sel.empty) sel.empty();    //old chrome and safari
+        } else if (document.selection) {   //ie
+            document.selection.empty();
+        }
+    }
+
+    //---------------------- export ----------------------
+
+    function ready(fn) {
+        waitFor(function () { return document.body; }, fn);
+    }
+
+    extend(Q, {
+        html: html,
+        head: head,
+        quirk: is_quirk_mode,
+
+        ready: ready,
+
+        encode: encode_url_param,
+        decode: decode_url_param,
+
+        param: process_url_param,
+        join: join_url,
+
+        parseHash: parse_url_hash,
+        getPageName: get_page_name,
+
+        loadJS: loadJS,
+        loadCSS: loadCSS,
+
+        engine: engine,
+
+        isInputKey: isInputKey,
+        isSameHost: isSameHost,
+
+        clearSelection: clearSelection,
+
+        cookie: cookie,
+        store: new Storage("localStorage", true),
+        session: new Storage("sessionStorage", true),
+        view: view,
+
+        Storage: Storage
+    });
+
+    //调用涉及到 body 操作的方法时,推荐在body标签闭合之前引入 Q.core.js 库
+    function init() {
+        Q.body = body = document.body;
+        Q.root = root = is_quirk_mode ? body : html;
+    }
+
+    //确保 document.body 已就绪
+    if (document.body) init();
+    else async(init, 0);
+
+    //暴露接口
+    window.request = parse_url_params();
+
+})();
+
+﻿/*
+* Q.setTimer.js 计时器
+* author:devin87@qq.com
+* update:2015/06/11 09:50
+*/
+(function (undefined) {
+    "use strict";
+
+    var fire = Q.fire;
+
+    //---------------------- 计时器 ----------------------
+
+    //计时器
+    function setTimer(ops) {
+        var box = ops.box,
+            process = ops.process,
+
+            length = ops.pad ? 2 : 1,
+
+            time = ops.time,
+            step = ops.step || 1,
+            sleep = ops.sleep || 1000,
+
+            str_join = ops.join || "",
+
+            units = ops.units || ["天", "小时", "分", "秒"];
+
+        if ((!box && !process) || time == undefined || isNaN(time)) return;
+
+        var total = +time, timer;
+
+        var pad = function (n, len) {
+            return n > 9 || len == 1 ? n : "0" + n;
+        };
+
+        var update = function () {
+            total += step;
+            if (total < 0) return;
+
+            var t = Date.parts(total),
+                days = t.days,
+                hours = t.hours,
+                mintues = t.mintues,
+                seconds = t.seconds;
+
+            var text = days + units[0] + str_join + pad(hours, length) + units[1] + str_join + pad(mintues, length) + units[2] + str_join + pad(seconds, length) + units[3],
+                result = fire(process, undefined, total, text, days, hours, mintues, seconds);
+
+            if (result !== false) {
+                if (box) box.innerHTML = typeof result == "string" ? result : text;
+                timer = setTimeout(update, sleep);
+            }
+        };
+
+        update();
+
+        var api = {
+            start: update,
+            stop: function () {
+                if (timer) clearTimeout(timer);
+            }
+        };
+
+        return api;
+    }
+
+    //------------------------- export -------------------------
+
+    Q.setTimer = setTimer;
+
+})();
+
+﻿/*
+* Q.dom.js DOM操作
+* author:devin87@qq.com
+* update:2015/07/28 11:46
+*/
+(function (undefined) {
+    "use strict";
+
+    var window = Q.G,
+        document = window.document,
+        html = Q.html,
+        head = Q.head,
+
+        isObject = Q.isObject,
+        extend = Q.extend,
+        makeArray = Q.makeArray,
+
+        is_quirk_mode = Q.quirk,
+        browser_ie = Q.ie,
+
+        view = Q.view;
+
+    //----------------------- DOM操作 -----------------------
+
+    //骆驼命名法
+    function camelCase(key) {
+        return key.replace(/-([a-z])/ig, function (s, s1) { return s1.toUpperCase(); });
+    }
+
+    var map_prop_name = {
+        "class": "className",
+        "for": "htmlFor",
+        "html": "innerHTML"
+    };
+
+    var map_attr_name = {
+        "className": "class",
+        "htmlFor": "for"
+    };
+
+    //修正DOM属性名(property)
+    function get_prop_name(name) {
+        return map_prop_name[name] || name;
+    }
+
+    //修正HTML属性名(attribute)
+    function get_attr_name(name) {
+        return map_attr_name[name] || name;
+    }
+
+    //获取属性(attribute)值
+    function get_attr(ele, key) {
+        //for IE7-
+        if (key == "style") return ele.style.cssText;
+
+        return ele.getAttribute(get_attr_name(key));
+    }
+
+    //设置或移除属性(attribute)值
+    function set_attr(ele, key, value) {
+        if (value !== null) {
+            //for IE7-
+            if (key == "style") ele.style.cssText = value;
+            else ele.setAttribute(get_attr_name(key), value);
+        } else {
+            ele.removeAttribute(get_attr_name(key));
+        }
+    }
+
+    //获取或设置元素属性(attribute)值
+    function attr(ele, key, value) {
+        if (typeof key == "string") {
+            if (value === undefined) return get_attr(ele, key);
+            return set_attr(ele, key, value);
+        }
+
+        Object.forEach(key, function (k, v) {
+            set_attr(ele, k, v);
+        });
+    }
+
+    //获取或设置元素属性(property)值
+    function prop(ele, key, value) {
+        if (typeof key == "string") {
+            key = get_prop_name(key);
+            if (value === undefined) return ele[key];
+            ele[key] = value;
+        } else {
+            Object.forEach(key, function (k, v) {
+                ele[get_prop_name(k)] = v;
+            });
+        }
+    }
+
+    //是否支持通过设置css为null来取消内联样式
+    function support_set_css_null() {
+        var box = document.createElement("div");
+        box.style.border = "1px solid red";
+
+        try { box.style.border = null; } catch (e) { }
+
+        return !box.style.border;
+    }
+
+    var SUPPORT_SET_CSS_NULL = support_set_css_null(),
+        CSS_FLOAT_NAME,
+
+        getComputedStyle,
+        getStyleValue;
+
+    //IE9+、w3c浏览器
+    if (window.getComputedStyle) {
+        CSS_FLOAT_NAME = "cssFloat";
+
+        getComputedStyle = function (ele) {
+            return window.getComputedStyle(ele, null);
+        };
+
+        //获取样式值
+        getStyleValue = function (ele, styles, key) {
+            return styles[key != "float" ? key : CSS_FLOAT_NAME];
+        };
+    } else {
+        CSS_FLOAT_NAME = "styleFloat";
+
+        //IE6、7、8 etc.
+        getComputedStyle = function (ele) {
+            return ele.currentStyle;
+        };
+
+        //单位转换
+        var toPX = function (el, value) {
+            var style = el.style, left = style.left, rsLeft = el.runtimeStyle.left;
+            el.runtimeStyle.left = el.currentStyle.left;
+            style.left = value || 0;
+
+            var px = style.pixelLeft;
+            style.left = left; //还原数据
+            el.runtimeStyle.left = rsLeft; //还原数据
+
+            return px + "px";
+        };
+
+        var map_border_width_fix = is_quirk_mode || browser_ie > 7 ? { thin: "1px", medium: "3px", thick: "5px" } : { thin: "2px", medium: "4px", thick: "6px" },
+
+            RE_OPACITY_VALUE = /opacity=([^)]*)/;
+
+        //获取样式值
+        getStyleValue = function (ele, styles, key) {
+            switch (key) {
+                case "opacity":
+                    var m = styles.filter.match(RE_OPACITY_VALUE);
+                    return m ? (parseFloat(m[1]) || 0) / 100 : 1;
+                case "float": return styles[CSS_FLOAT_NAME];
+            }
+
+            var value = styles[key];
+
+            //转换可度量的值
+            if (/(em|pt|mm|cm|pc|in|ex|rem|vw|vh|vm|ch|gr)$/.test(value)) {
+                return toPX(ele, value);
+            }
+
+            //转换百分比，不包括字体
+            if (/%$/.test(value) && key != "fontSize") {
+                return _getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
+            }
+
+            //计算边框宽度
+            if (/^border.+Width$/.test(key)) {
+                var borderStyle = key.replace("Width", "Style");
+                return value == "medium" && styles[borderStyle] == "none" ? "0px" : map_border_width_fix[value] || value;
+            }
+
+            return value;
+        };
+    }
+
+    //获取样式值并解析为数字
+    function getStyleFloat(ele, key, styles) {
+        return parseFloat(getStyleValue(ele, styles || getComputedStyle(ele), key)) || 0;
+    }
+
+    //获取元素尺寸,不考虑怪异模式
+    //type:  Width|Height
+    //level: 0,1,2 => width,width+padding,width+padding+border;height类似
+    function getSizeOf(ele, type, level) {
+        var cssText;
+        if (isHidden(ele)) {
+            cssText = ele.style.cssText;
+            ele.style.cssText = cssText + ";position: absolute; visibility: hidden;";
+            cssShow(ele);
+        }
+
+        var value;
+
+        if (level === 2) value = ele["offset" + type];
+        else {
+            value = ele["client" + type];
+
+            if (level !== 1 && value > 0) value -= type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
+
+            //is_quirk_mode && browser_ie < 10 => value=ele["offset" + type];
+            //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
+        }
+
+        if (cssText) ele.style.cssText = cssText;
+
+        return value;
+    }
+
+    //获取元素宽度
+    function getWidth(ele, level) {
+        return getSizeOf(ele, "Width", level);
+    }
+
+    //获取元素高度
+    function getHeight(ele, level) {
+        return getSizeOf(ele, "Height", level);
+    }
+
+    //获取或设置元素的宽度
+    function width(ele, value, flag) {
+        if (value === undefined) return getWidth(ele);
+
+        setStyle(ele, "width", value + (flag ? getWidth(ele) : 0));
+    }
+
+    //获取或设置元素的高度
+    function height(ele, value, flag) {
+        if (value === undefined) return getHeight(ele);
+
+        setStyle(ele, "height", value + (flag ? getHeight(ele) : 0));
+    }
+
+    //获取元素内部区域宽度(width+padding => clientWidth)
+    function innerWidth(ele) {
+        return getWidth(ele, 1);
+    }
+
+    //获取元素内部区域高度(height+padding => clientHeight)
+    function innerHeight(ele) {
+        return getHeight(ele, 1);
+    }
+
+    //获取元素外部区域宽度(width+padding+border => offsetWidth)
+    function outerWidth(ele) {
+        return getWidth(ele, 2);
+    }
+
+    //获取元素外部区域高度(height+padding+border => offsetHeight)
+    function outerHeight(ele) {
+        return getHeight(ele, 2);
+    }
+
+    //获取或设置元素宽高
+    function size(ele, w, h, flag) {
+        if (w === undefined && h === undefined) return { width: getWidth(ele), height: getHeight(ele) };
+
+        if (w != undefined) width(ele, w, flag);
+        if (h != undefined) height(ele, h, flag);
+    }
+
+    //获取元素当前样式(包括外部样式和嵌入样式)
+    function getStyle(ele, key) {
+        if (key == "width") return getWidth(ele) + "px";
+        if (key == "height") return getHeight(ele) + "px";
+
+        return getStyleValue(ele, getComputedStyle(ele), camelCase(key));
+    }
+
+    //移除指定内联样式
+    function removeCss(ele, key) {
+        if (SUPPORT_SET_CSS_NULL) {
+            ele.style[key == "float" ? CSS_FLOAT_NAME : camelCase(key)] = null;
+            return;
+        }
+
+        var cssText = ele.style.cssText;
+        if (cssText) ele.style.cssText = cssText.drop(key + "(-[^:]+)?\\s*:[^;]*;?", "gi").trim();
+    }
+
+    //设置样式时以下值若是数字,则自动补上单位
+    var map_css_require_unit = ["width", "height", "left", "right", "top", "bottom"].toMap(true);
+
+    //设置元素的样式
+    function setStyle(ele, key, value) {
+        //移除指定内联样式
+        if (value === null) return removeCss(ele, key);
+
+        switch (key) {
+            case "float": ele.style[CSS_FLOAT_NAME] = value; break;
+            case "opacity":
+                if (value <= 1) value *= 100;
+                if (ele.style.opacity != undefined) ele.style.opacity = value / 100;
+                else if (ele.style.filter != undefined) ele.style.filter = "alpha(opacity=" + value + ")";
+                break;
+            default: ele.style[camelCase(key)] = typeof value == "number" && map_css_require_unit[key] ? value + "px" : value; break;
+        }
+    }
+
+    //获取或设置元素样式
+    function css(ele, key, value) {
+        if (typeof key == "string") {
+            if (value === undefined) return getStyle(ele, key);
+            return setStyle(ele, key, value);
+        }
+
+        Object.forEach(key, function (k, v) {
+            setStyle(ele, k, v);
+        });
+    }
+
+    //设置元素透明
+    function setOpacity(ele, value) {
+        setStyle(ele, "opacity", value);
+    }
+
+    var map_node_display = {};
+
+    //获取元素默认display值  eg:tr => table-row
+    function defaultDisplay(nodeName) {
+        var display = map_node_display[nodeName];
+        if (display) return display;
+
+        var node = createEle(nodeName);
+        Q.body.appendChild(node);
+
+        display = getComputedStyle(node).display;
+        if (!display || display == "none") display = "block";
+
+        Q.body.removeChild(node);
+
+        map_node_display[nodeName] = display;
+
+        return display;
+    }
+
+    //元素是否隐藏
+    function isHidden(ele) {
+        return getComputedStyle(ele).display == "none";
+    }
+
+    //显示元素
+    function cssShow(ele) {
+        ele.style.display = "";
+
+        if (isHidden(ele)) setStyle(ele, "display", defaultDisplay(ele.nodeName));
+    }
+
+    //隐藏元素
+    function cssHide(ele) {
+        ele.style.display = "none";
+    }
+
+    //自动判断并切换元素显示或隐藏
+    function cssToggle(ele) {
+        isHidden(ele) ? cssShow(ele) : cssHide(ele);
+    }
+
+    //获取元素偏移 {left,top,width,height}
+    function getOffset(ele) {
+        //support:IE6+ | FF3.0+ | Chrome1+ | Safari4+ | Opera9.5+
+        //在IE、Firefox、Opera中getBoundingClientRect性能比offset迭代(offsetLeft、offsetTop)快1-4倍,Chrome中2者差不多
+        //bug:IE6、7会多出2px,IE8在根元素上会少2px,使用 css: html{margin:0;}后,IE7、8问题依旧,IE6(XP)会在body上多出2px
+        var root = Q.root,
+            rect = ele.getBoundingClientRect(),
+
+            left = rect.left + (window.pageXOffset || root.scrollLeft) - root.clientLeft,
+            top = rect.top + (window.pageYOffset || root.scrollTop) - root.clientTop;
+
+        //IE6根元素
+        if (left < 0) left = 0;
+        if (top < 0) top = 0;
+
+        //仅IE7根元素得出的宽高不包括滚动条的宽高
+        return { left: left, top: top, width: rect.right - rect.left, height: rect.bottom - rect.top };
+    }
+
+    //设置元素偏移
+    function setOffset(ele, x, y, f) {
+        var fix = { left: 0, top: 0 };
+        if (f) fix = getOffset(ele);
+
+        setCssIfNot(ele, "position", "absolute");
+
+        if (x !== undefined) setStyle(ele, "left", x + fix.left);
+        if (y !== undefined) setStyle(ele, "top", y + fix.top);
+    }
+
+    //获取或设置元素偏移
+    function offset(ele, x, y, f) {
+        if (x === undefined && y === undefined) return getOffset(ele);
+
+        setOffset(ele, x, y, f)
+    }
+
+    //获取相对pNode元素的偏移
+    function getPos(ele, pNode) {
+        if (!pNode) pNode = ele.offsetParent;
+
+        var offset = getOffset(ele),
+            poffset = getOffset(pNode);
+
+        offset.left -= poffset.left + getStyleFloat(pNode, "borderLeftWidth") + getStyleFloat(ele, "marginLeft");
+        offset.top -= poffset.top + getStyleFloat(pNode, "borderTopWidth") + getStyleFloat(ele, "marginTop");
+
+        return offset;
+    }
+
+    //当元素的css值与要设置的css值不同时,设置css
+    function setCssIfNot(ele, key, value) {
+        if (ele && getStyle(ele, key) != value) setStyle(ele, key, value);
+    }
+
+    //设置元素居中显示(absolute定位)
+    function setCenter(ele) {
+        setCssIfNot(ele, "position", "absolute");
+
+        var size = view.getSize(),
+            offset = getOffset(ele.offsetParent),
+
+            left = Math.round((size.width - ele.offsetWidth) / 2) - offset.left + view.getScrollLeft(),
+            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop();
+
+        css(ele, { left: Math.max(left, 0), top: Math.max(top, 0) });
+    }
+
+    var NODE_PREV = "previousSibling",
+        NODE_NEXT = "nextSibling",
+        NODE_FIRST = "firstChild",
+        NODE_LAST = "lastChild",
+        NODE_PARENT = "parentNode";
+
+    //遍历元素节点
+    function walk(ele, walk, start, all) {
+        var el = ele[start || walk];
+        var list = [];
+        while (el) {
+            if (el.nodeType == 1) {
+                if (!all) return el;
+                list.push(el);
+            }
+            el = el[walk];
+        }
+        return all ? list : null;
+    }
+
+    //获取上一个元素节点
+    function getPrev(ele) {
+        return ele.previousElementSibling || walk(ele, NODE_PREV, null, false);
+    }
+
+    //获取在当前节点之前的所有元素节点
+    function getAllPrev(ele) {
+        return walk(ele, NODE_PREV, null, true);
+    }
+
+    //获取下一个元素节点
+    function getNext(ele) {
+        return ele.nextElementSibling || walk(ele, NODE_NEXT, null, false);
+    }
+
+    //获取在当前节点之后的所有元素节点
+    function getAllNext(ele) {
+        return walk(ele, NODE_NEXT, null, true);
+    }
+
+    //获取第一个元素子节点
+    function getFirst(ele) {
+        return ele.firstElementChild || walk(ele, NODE_NEXT, NODE_FIRST, false);
+    }
+
+    //获取最后一个元素子节点
+    function getLast(ele) {
+        return ele.lastElementChild || walk(ele, NODE_PREV, NODE_LAST, false);
+    }
+
+    //获取父节点
+    function getParent(ele) {
+        return walk(ele, NODE_PARENT, null, false);
+    }
+
+    //获取所有父节点(父节点及父节点的父节点等等)
+    function getParents(ele) {
+        return walk(ele, NODE_PARENT, null, true);
+    }
+
+    //获取所有子元素节点
+    function getChilds(ele) {
+        //walk方式性能要好于通过childNodes筛选
+        return ele.children ? makeArray(ele.children) : walk(ele, NODE_NEXT, NODE_FIRST, true);
+    }
+
+    //根据标签名获取标签,若当前节点不匹配,则从父节点往上查找
+    //tagName:标签名,大写
+    function findTag(ele, tagName) {
+        while (ele && ele.tagName != "BODY") {
+            if (ele.tagName == tagName) return ele;
+            ele = ele.parentNode;
+        }
+    }
+
+    //创建元素
+    function createEle(tagName, className, html) {
+        var ele = document.createElement(tagName);
+        if (className) ele.className = className;
+        if (html) ele.innerHTML = html;
+
+        return ele;
+    }
+
+    //解析html为元素,默认返回第一个元素节点
+    //all:是否返回所有节点(childNodes)
+    function parseHTML(html, all) {
+        var _pNode = createEle("div", undefined, html);
+
+        return all ? _pNode.childNodes : getFirst(_pNode);
+    }
+
+    //移除节点
+    //node:要移除的节点
+    function removeEle(node) {
+        if (!node) return;
+
+        var pNode = node.parentNode;
+        if (pNode) pNode.removeChild(node);
+    }
+
+    //元素包含比较
+    var containsNode;
+    if (html.contains) {
+        containsNode = function (ele, node) {
+            return ele.contains(node);
+        }
+    } else {
+        containsNode = function (ele, node) {
+            return !!(this.compareDocumentPosition(node) & 16);
+        }
+    }
+
+    //动态创建样式
+    function createStyle(cssText) {
+        var style = createEle("style");
+        style.type = "text/css";
+
+        if (style.styleSheet) style.styleSheet.cssText = cssText;
+        else style.appendChild(document.createTextNode(cssText));
+
+        head.appendChild(style);
+
+        return style;
+    }
+
+    var hasClass, addClass, removeClass, replaceClass, toggleClass;
+
+    if (isObject(html.classList)) {
+        hasClass = function (ele, clsName) {
+            return ele.classList.contains(clsName);
+        };
+
+        addClass = function (ele, clsName) {
+            ele.classList.add(clsName);
+        };
+
+        removeClass = function (ele, clsName) {
+            ele.classList.remove(clsName);
+        };
+
+        replaceClass = function (ele, oldName, clsName) {
+            ele.classList.remove(oldName);
+            ele.classList.add(clsName);
+        };
+
+        toggleClass = function (ele, clsName) {
+            ele.classList.toggle(clsName);
+        };
+    } else {
+        //操作元素className
+        //delName:要删除的className
+        //addName:要添加的className
+        var set_className = function (ele, delName, addName) {
+            var className = ele.className,
+                list = className.split(" "),
+                len = list.length,
+                i = 0;
+
+            if (!delName) {
+                for (; i < len; i++) {
+                    if (list[i] == addName) return;
+                }
+
+                className += " " + addName;
+            } else {
+                var hasName = false, classList = [];
+                for (; i < len; i++) {
+                    if (list[i] != delName) classList.push(list[i]);
+                    else if (list[i] == addName) hasName = true;
+                }
+
+                if (!hasName && addName) classList.push(addName);
+                className = classList.join(" ");
+            }
+
+            ele.className = className;
+        };
+
+        hasClass = function (ele, clsName) {
+            return (ele.className + " ").contains(clsName + " ");
+        };
+
+        addClass = function (ele, clsName) {
+            set_className(ele, undefined, clsName);
+        };
+
+        removeClass = function (ele, clsName) {
+            set_className(ele, clsName, "");
+        };
+
+        replaceClass = function (ele, oldName, clsName) {
+            set_className(ele, oldName, clsName);
+        };
+
+        toggleClass = function (ele, clsName) {
+            hasClass(ele, clsName) ? removeClass(ele, clsName) : addClass(ele, clsName);
+        };
+    }
+
+    //---------------------- 其它 ----------------------
+
+    //将输入框样式设为错误模式
+    function setInputError(input, hasBorder) {
+        if (hasBorder) input.style.borderColor = "red";
+        else input.style.border = "1px solid red";
+
+        input.value = "";
+        input.focus();
+    }
+
+    //恢复输入框默认样式
+    function setInputDefault(input) {
+        removeCss(input, "border");
+    }
+
+    //------------------------- export -------------------------
+
+    extend(Q, {
+        camelCase: camelCase,
+
+        attr: attr,
+        prop: prop,
+
+        width: width,
+        height: height,
+        innerWidth: innerWidth,
+        innerHeight: innerHeight,
+        outerWidth: outerWidth,
+        outerHeight: outerHeight,
+        size: size,
+
+        getStyle: getStyle,
+        setStyle: setStyle,
+        setOpacity: setOpacity,
+        removeCss: removeCss,
+        css: css,
+
+        show: cssShow,
+        hide: cssHide,
+        toggle: cssToggle,
+        isHidden: isHidden,
+
+        offset: offset,
+        getPos: getPos,
+
+        setCssIfNot: setCssIfNot,
+        setCenter: setCenter,
+
+        walk: walk,
+        getPrev: getPrev,
+        getAllPrev: getAllPrev,
+        getNext: getNext,
+        getAllNext: getAllNext,
+        getFirst: getFirst,
+        getLast: getLast,
+        getParent: getParent,
+        getParents: getParents,
+        getChilds: getChilds,
+
+        findTag: findTag,
+        createEle: createEle,
+        parseHTML: parseHTML,
+        removeEle: removeEle,
+        containsNode: containsNode,
+        createStyle: createStyle,
+
+        hasClass: hasClass,
+        addClass: addClass,
+        removeClass: removeClass,
+        replaceClass: replaceClass,
+        toggleClass: toggleClass,
+
+        setInputError: setInputError,
+        setInputDefault: setInputDefault
+    });
+
+})();
+
+﻿/*
+* Q.event.js 事件处理
+* author:devin87@qq.com  
+* update:2015/07/22 14:49
+*/
+(function (undefined) {
+    "use strict";
+
+    var window = Q.G,
+
+        isFunc = Q.isFunc,
+        isObject = Q.isObject,
+        isArrayLike = Q.isArrayLike,
+
+        makeArray = Q.makeArray,
+        containsNode = Q.containsNode,
+        query = Q.query,
+
+        factory = Q.factory,
+
+        view = Q.view,
+        browser_gecko = Q.gecko;
+
+    //获取原始event对象
+    function get_originalEvent(e) {
+        if (!e) return window.event;
+
+        return e.originalEvent || e;
+    }
+
+    //阻止事件默认行为并停止事件冒泡
+    function stop_event(event, isPreventDefault, isStopPropagation) {
+        var e = get_originalEvent(event);
+
+        //阻止事件默认行为
+        if (isPreventDefault !== false) {
+            if (e.preventDefault) e.preventDefault();
+            else e.returnValue = false;
+        }
+
+        //停止事件冒泡
+        if (isStopPropagation !== false) {
+            if (e.stopPropagation) e.stopPropagation();
+            else e.cancelBubble = true;
+        }
+    }
+
+    //自定义Event对象
+    function QEvent(event) {
+        var e = get_originalEvent(event),
+
+            type = e.type,
+            target = e.target || e.srcElement,
+            relatedTarget = e.relatedTarget || (type == "mouseover" ? e.fromElement : e.toElement),
+            rightClick = e.which == 3 || e.button == 2,
+
+            clientX = e.clientX,
+            clientY = e.clientY,
+
+            keyCode = e.keyCode,
+
+            deltaY = 0,
+
+            self = this;
+
+        //修正为element元素,即nodeType==1
+        while (target && target.nodeType != 1) target = target.parentNode;
+
+        //原生Event对象
+        self.originalEvent = e;
+
+        self.type = type;
+        self.target = target;
+        self.relatedTarget = relatedTarget;
+
+        self.rightClick = rightClick;
+
+        //Mouse Event
+        if (clientX !== undefined) {
+            var x = e.pageX,
+                y = e.pageY;
+
+            if (x == undefined) x = e.x != undefined ? e.x : clientX + view.getScrollLeft();
+            if (y == undefined) y = e.y != undefined ? e.y : clientY + view.getScrollTop();
+
+            self.clientX = clientX;
+            self.clientY = clientY;
+            self.pageX = self.x = x;
+            self.pageY = self.y = y;
+        }
+
+        //Key Event
+        if (keyCode !== undefined) self.keyCode = e.keyCode;
+
+        self.altKey = e.altKey;
+        self.ctrlKey = e.ctrlKey;
+        self.shiftKey = e.shiftKey;
+
+        //Wheel Event
+        if ("wheelDelta" in e) deltaY = e.wheelDelta;
+        else if ("wheelDeltaY" in e) deltaY = e.wheelDeltaY;
+        else if ("deltaY" in e) deltaY = -e.deltaY;
+        else deltaY = -e.detail;
+
+        if (deltaY != 0) deltaY = deltaY > 0 ? 1 : -1;
+
+        //向上滚动为1,向下滚动为-1
+        self.delta = deltaY;
+    }
+
+    factory(QEvent).extend({
+        //阻止事件默认行为
+        preventDefault: function () {
+            stop_event(this, true, false);
+        },
+        //停止事件冒泡
+        stopPropagation: function () {
+            stop_event(this, false, true);
+        },
+        //阻止事件默认行为并停止事件冒泡
+        stop: function () {
+            stop_event(this);
+        }
+    });
+
+    //获取兼容的event对象
+    function fix_event(e) {
+        return new QEvent(e);
+    }
+
+    var EVENT_TYPE_WHEEL = "onwheel" in document || Q.ie >= 9 ? "wheel" : (browser_gecko ? "DOMMouseScroll" : "mousewheel"),
+
+        SUPPORT_W3C_EVENT = !!document.addEventListener,
+        SUPPORT_MOUSE_ENTER_LEAVE = "onmouseenter" in Q.html;
+
+    //添加DOM事件,未做任何封装
+    function addEvent(ele, type, fn) {
+        if (SUPPORT_W3C_EVENT) ele.addEventListener(type, fn, false);
+        else ele.attachEvent("on" + type, fn);  //注意:fn的this并不指向ele
+    }
+
+    //移除DOM事件
+    function removeEvent(ele, type, fn) {
+        if (SUPPORT_W3C_EVENT) ele.removeEventListener(type, fn, false);
+        else ele.detachEvent("on" + type, fn);
+    }
+
+    //获取代理目标元素
+    function get_target(root, ele, selector) {
+        var nodes = query(selector, root);
+        for (var i = 0, len = nodes.length; i < len; i++) {
+            if (containsNode(nodes[i], ele)) return nodes[i];
+        }
+    }
+
+    var map_special = {};
+
+    var bind_as_enter_leave = function (fn) {
+        return function (e) {
+            var target = this,
+                related = e.relatedTarget;
+
+            if (!related || (related !== target && !containsNode(target, related))) {
+                e.type = e.type == "mouseover" ? "mouseenter" : "mouseleave";
+                fn.call(target, e);
+            }
+        }
+    };
+
+    map_special.mouseenter = {
+        type: "mouseover",
+        factory: bind_as_enter_leave
+    };
+
+    map_special.mouseleave = {
+        type: "mouseout",
+        factory: bind_as_enter_leave
+    };
+
+
+    //添加事件
+    function add_event(ele, type, selector, fn, once, stops) {
+        if (type == "wheel" || type == "mousewheel") type = EVENT_TYPE_WHEEL;
+
+        if (once) {
+            var _fn = fn;
+
+            fn = function (e) {
+                _fn.call(this, e);
+
+                removeEvent(ele, e.originalEvent.type, handle);
+            };
+        }
+
+        //mouseenter、mouseleave特殊处理
+        if (!SUPPORT_MOUSE_ENTER_LEAVE || selector) {
+            var special = map_special[type];
+            if (special) {
+                type = special.type;
+                fn = special.factory(fn);
+            }
+        }
+
+        var handle = function (event) {
+            var e = fix_event(event),
+                target,
+                flag = !selector || (target = get_target(ele, e.target, selector));
+
+            if (flag) fn.call(target || ele, e);
+        };
+
+        addEvent(ele, type, handle);
+
+        if (!once) stops.push([ele, type, handle, selector]);
+    }
+
+    //批量添加事件
+    //types:事件类型,多个之间用空格分开;可以为对象
+    //selector:要代理的事件选择器或处理句柄
+    function add_events(elements, types, selector, handle, once) {
+        if (typeof types == "string") {
+            types = types.split(' ');
+
+            if (isFunc(selector)) {
+                once = once || handle;
+                handle = selector;
+                selector = undefined;
+            }
+        } else {
+            if (selector === true || handle === true) once = true;
+            if (selector === true) selector = undefined;
+        }
+
+        var stops = [];
+
+        makeArray(elements).forEach(function (ele) {
+            if (isArrayLike(types)) {
+                makeArray(types).forEach(function (type) {
+                    add_event(ele, type, selector, handle, once, stops);
+                });
+            } else if (isObject(types)) {
+                Object.forEach(types, function (type, handle) {
+                    add_event(ele, type, selector, handle, once, stops);
+                });
+            }
+        });
+
+        //返回移除事件api
+        return {
+            es: stops,
+
+            off: function (types, selector) {
+                remove_events(stops, types, selector);
+            }
+        };
+    }
+
+    //批量移除事件
+    //es:事件句柄对象列表  eg:es => [[ele, type, handle, selector],...]
+    function remove_events(es, types, selector) {
+        var list = es;
+        if (types) {
+            var map_type = types.split(' ').toMap(true);
+            list = list.filter(function (s) {
+                return map_type[s[1]];
+            });
+        }
+
+        if (selector) {
+            list = list.filter(function (s) {
+                return s[3] == selector;
+            });
+        }
+
+        list.forEach(function (s) {
+            removeEvent.apply(undefined, s.slice(0, 3));
+        });
+    }
+
+    //批量添加事件,执行一次后取消
+    function add_events_one(elements, types, selector, handle) {
+        return add_events(elements, types, selector, handler, true);
+    }
+
+    //触发事件
+    function trigger_event(ele, type) {
+        if (isFunc(ele[type])) ele[type]();
+        else if (ele.fireEvent) ele.fireEvent("on" + type);  //ie10-
+        else if (ele.dispatchEvent) {
+            var evt = document.createEvent("HTMLEvents");
+
+            //initEvent接受3个参数:事件类型,是否冒泡,是否阻止浏览器的默认行为
+            evt.initEvent(type, true, true);
+
+            //鼠标事件,设置更多参数
+            //var evt = document.createEvent("MouseEvents");
+            //evt.initMouseEvent(type, true, true, ele.ownerDocument.defaultView, 1, e.screenX, e.screenY, e.clientX, e.clientY, false, false, false, false, 0, null);
+
+            ele.dispatchEvent(evt);
+        }
+    }
+
+    //---------------------- export ----------------------
+
+    Q.Event = QEvent;
+
+    Q.event = {
+        fix: fix_event,
+        stop: stop_event,
+        trigger: trigger_event,
+
+        //原生事件添加(建议使用add)
+        addEvent: addEvent,
+        //原生事件移除
+        removeEvent: removeEvent,
+
+        //添加事件,并返回操作api
+        add: add_events,
+
+        //注意:批量移除事件,与一般事件移除不同;移除事件请使用add返回的api
+        removeEs: remove_events,
+        one: add_events_one
+    };
+
+})();
+
+﻿/*
+* Q.ajax.js Ajax & JSONP
+* author:devin87@qq.com  
+* update:2015/07/15 11:18
+*/
+(function (undefined) {
+    "use strict";
+
+    var window = Q.G,
+
+        isFunc = Q.isFunc,
+        isUInt = Q.isUInt,
+
+        def = Q.def,
+        extend = Q.extend,
+        fire = Q.fire,
+
+        to_param_str = Q.param,
+        combine_url = Q.join,
+
+        browser_ie = Q.ie;
+
+    var is_support_xhr = !!window.XMLHttpRequest,
+        is_http = !!location.host;
+
+    //XMLHTTP支持检测 for IE
+    function ajax_detect() {
+        var xmlhttps = [/*"Msxml2.XMLHTTP.6.0",*/ "Msxml2.XMLHTTP", "Microsoft.XMLHTTP"];
+        for (var i = 0, len = xmlhttps.length; i < len ; i++) {
+            try {
+                new ActiveXObject(xmlhttps[i]);
+
+                return xmlhttps[i];
+            } catch (e) { }
+        }
+    }
+
+    //创建跨浏览器的xmlhttp对象
+    var ajax_create;
+
+    if (is_support_xhr && (!browser_ie || is_http)) {
+        ajax_create = function () {
+            return new XMLHttpRequest();
+        };
+    } else {
+        var ie_xmlhttp = ajax_detect();
+
+        ajax_create = function () {
+            return new ActiveXObject(ie_xmlhttp);
+        };
+    }
+
+    var HTTP_METHOD_GET = "GET",
+        HTTP_METHOD_POST = "POST";
+
+    var global_ajax_settings = {};
+
+    //转为小写
+    function toLower(str, defValue) {
+        return typeof str == "string" ? str.toLowerCase() : defValue;
+    }
+
+    //格式化ajax设置
+    function ajax_option(ops, success, error) {
+        ops = ops || {};
+
+        var get_value = function (prop) {
+            return def(ops[prop], global_ajax_settings[prop]);
+        };
+
+        var data_type = toLower(get_value("dataType") || "html"),
+            timeout = get_value("timeout"),
+            is_ajax = toLower(ops.dataType) != "jsonp";
+
+        return {
+            type: is_ajax ? (get_value("type") || HTTP_METHOD_GET).toUpperCase() : HTTP_METHOD_GET,
+            data: get_value("data"),
+            dataType: data_type,
+
+            jsonp: is_ajax ? undefined : get_value("jsonp") || "jsonpcallback",
+            jsonpCallback: is_ajax ? undefined : get_value("jsonpCallback") || "_q_jsonp",
+
+            mimeType: is_ajax ? toLower(get_value("mimeType") || "text/" + data_type) : undefined,
+
+            charset: toLower(get_value("charset") || "utf-8"),
+
+            async: get_value("async") !== false,
+            cache: get_value("cache") !== false,
+
+            timeout: isUInt(timeout) ? Math.round(timeout) : undefined,
+
+            beforeSend: get_value("beforeSend"),
+            success: success || get_value("success"),
+            error: error || get_value("error"),
+            complete: get_value("complete"),
+
+            headers: is_ajax ? extend(get_value("headers") || {}, {
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "*/*"
+            }) : undefined
+        };
+    }
+
+    //设置ajax全局设置
+    function ajax_setup(ops) {
+        extend(global_ajax_settings, ops, true);
+    }
+
+    var ajax_guid = Date.now(),
+
+        //jsonp
+        head = Q.head,
+        opera = window.opera,
+        oldIE = browser_ie < 9,
+        jsonpCount = 0,
+        jsonpCache;
+
+    //创建script元素
+    function createScript(text) {
+        var script = document.createElement("script");
+        script.type = "text/javascript";
+        if (text) script.text = text;
+
+        return script;
+    }
+
+    //jsonp回调函数
+    function jsonpCallback(data) {
+        jsonpCache = [data];
+    }
+
+    //处理jsonp请求
+    //参考 jquery.jsonp.js 实现
+    function jsonp(url, ops) {
+        //beforeSend事件,当返回值为false时,取消jsonp发送
+        if (fire(ops.beforeSend, undefined, ops) === false) return;
+
+        var charset = ops.charset,
+            timeout = ops.timeout,
+            jsonp_param_key = ops.jsonp,
+            jsonp_param_value = ops.jsonpCallback,
+
+            scriptId = jsonpCallback + (++jsonpCount),
+            script_for_error,
+
+            timer;
+
+        url = combine_url(url, jsonp_param_key + "=" + jsonp_param_value);
+        window[jsonp_param_value] = jsonpCallback;
+
+        var dispose = function () {
+            timer && clearTimeout(timer);
+
+            script.onload = script.onerror = script.onreadystatechange = null;
+            //head.removeChild(script);
+            if (script_for_error) head.removeChild(script_for_error);
+        };
+
+        var process_success = function (data) {
+            dispose();
+
+            ops.response = data;
+            fire_ajax_complete(undefined, ops, AJAX_STATE_SUCCESS);
+        };
+
+        var process_error = function (state) {
+            dispose();
+
+            fire_ajax_complete(undefined, ops, state);
+        };
+
+        var script = createScript();
+        if (charset) script.charset = charset;
+
+        //opera11-不支持script的onerror事件
+        if (opera && opera.version() < 11.6) {
+            script.id = scriptId;
+            script_for_error = createScript('document.getElementById("' + scriptId + '").onerror();');
+        } else if (ops.async) {
+            script.async = "async";
+        }
+
+        //ie6-8不支持script的onerror事件,trick
+        //用htmlFor和event属性来保证在readyState == loaded || readyState == complete时，script中的代码已经执行
+        if (oldIE) {
+            script.id = scriptId;
+            script.htmlFor = scriptId;
+            script.event = "onclick";
+        }
+
+        script.onload = script.onerror = script.onreadystatechange = function () {
+            if (script.readyState && /i/.test(script.readyState)) return;
+
+            //手动触发script标签的onclick事件，来保证script中的内容得以执行(ie6-8)
+            try { script.onclick && script.onclick(); } catch (e) { }
+
+            var result = jsonpCache;
+            jsonpCache = 0;
+
+            result ? process_success(result[0]) : process_error(AJAX_STATE_FAILURE);
+        };
+
+        script.src = url;
+
+        //beforeSend事件,当返回值为false时,取消jsonp
+        if (process_ajax_beforeSend(script, ops) === false) return;
+
+        //在IE6上，文档加载完毕之前使用appendChild会出错，而使用insertBefore就不会出错
+        var firstChild = head.firstChild;
+        head.insertBefore(script, firstChild);
+        if (script_for_error) head.insertBefore(script_for_error, firstChild);
+
+        timer = isUInt(timeout) && setTimeout(function () {
+            process_error(AJAX_STATE_TIMEDOUT);
+        }, timeout);
+    }
+
+    //发送一个ajax请求
+    function ajax_send(url, ops) {
+        if (isFunc(ops)) ops = { success: ops };
+
+        //配置处理
+        ops = ajax_option(ops);
+        ops.url = url;
+
+        //队列接口
+        if (ops.queue) return ops.queue.add(url, ops);
+
+        var type = ops.type,
+            headers = ops.headers,
+            str_params = to_param_str(ops.data);
+
+        //强制禁用缓存
+        //若服务器执行了缓存策略,firefox、chrome等仍然会进行缓存
+        //if (!ops.cache) headers["If-Modified-Since"] = "0";
+
+        //禁用缓存
+        if (!ops.cache) {
+            url = combine_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
+        } else {
+            if (type != HTTP_METHOD_POST) url = combine_url(url, str_params);
+        }
+
+        //jsonp单独处理
+        if (ops.jsonp) return jsonp(url, ops);
+
+        if (type == HTTP_METHOD_POST) headers["Content-Type"] = "application/x-www-form-urlencoded";
+        else str_params = null;
+
+        //创建xmlhttp对象
+        var xhr = ajax_create();
+
+        //打开ajax连接
+        xhr.open(type, url, ops.async);
+
+        //设置http头(必须在 xhr.open 之后)
+        Object.forEach(headers, function (key, value) {
+            xhr.setRequestHeader(key, value);
+        });
+
+        //修正ajax乱码
+        if (xhr.overrideMimeType) xhr.overrideMimeType(ops.mimeType + ";charset=" + ops.charset);
+        else ops.needFix = true;
+
+        //beforeSend事件,当返回值为false时,取消ajax发送
+        if (process_ajax_beforeSend(xhr, ops) === false) return;
+
+        //处理ajax超时
+        process_ajax_timeout(xhr, ops);
+
+        //处理ajax回调
+        process_ajax_callback(xhr, ops);
+
+        xhr.send(str_params);
+
+        return xhr;
+    }
+
+    //ajax 执行状态
+    var AJAX_STATE_TIMEDOUT = -1,
+        AJAX_STATE_FAILURE = 0,
+        AJAX_STATE_SUCCESS = 1
+
+    //ajax发送之前
+    function process_ajax_beforeSend(xhr, ops) {
+        ops._begin = Date.now();
+
+        return fire(ops.beforeSend, ops, xhr, ops);
+    }
+
+    //处理ajax超时
+    function process_ajax_timeout(xhr, ops) {
+        var timeout = ops.timeout;
+        if (!timeout) return;
+
+        var ontimeout = function () {
+            fire_ajax_complete(xhr, ops, AJAX_STATE_TIMEDOUT);
+        };
+
+        //原生支持timeout的浏览器
+        //注意:当timeout事件触发时,xhr.readyState可能已经为4了
+        if ("timeout" in xhr) {
+            xhr.timeout = timeout;
+            xhr.ontimeout = ontimeout;
+        } else {
+            //for ie6、7
+            ops.timer = setTimeout(function () {
+                //此处代码需放在 xhr.abort 之前
+                //ie6 调用 xhr.abort 不会触发 onreadystatechange 事件
+                ontimeout();
+
+                xhr.abort();
+            }, timeout);
+        }
+    }
+
+    //获取返回内容
+    function get_responseText(xhr, ops) {
+        var data;
+
+        try {
+            //ie6 bug:当服务器不是utf编码时,可能触发 -1072896748 系统错误
+            data = xhr.responseText;
+
+            if (!ops.needFix || !browser_ie || (ops.charset && ops.charset.startsWith("utf-"))) return data;
+        } catch (e) { }
+
+        //for ie
+        try {
+            var rs = new ActiveXObject("ADODB.RecordSet");
+            rs.fields.append("a", 201, 1);
+            rs.open();
+            rs.addNew();
+            rs(0).appendChunk(xhr.responseBody);
+            rs.update();
+            data = rs(0).value;
+            rs.close();
+        } catch (e) { }
+
+        return data;
+    }
+
+    //获取返回内容
+    function get_response_data(xhr, ops) {
+        var dataType = ops.dataType;
+        if (dataType == "xml") return xhr.responseXML;
+
+        var data = get_responseText(xhr, ops);
+
+        return dataType == "json" ? JSON.parse(data) : data;
+    }
+
+    //处理ajax回调
+    function process_ajax_callback(xhr, ops) {
+        xhr.onreadystatechange = function () {
+            //判断 ops.state 和 xhr.status 以避免重复触发(主要是对timeout而言)
+            //浏览器原生timeout事件触发时,xhr.readyState可能已经为4了
+            if (xhr.readyState != 4 || ops.state != undefined || (ops.timeout && is_http && xhr.status == 0)) return;
+
+            if (ops.timer) {
+                clearTimeout(ops.timer);
+                delete ops.timer;
+            }
+
+            var successed = (xhr.status >= 200 && xhr.status < 400) || (xhr.status == 0 && !is_http);
+            if (successed) ops.response = get_response_data(xhr, ops);
+
+            //触发ajax完成事件
+            fire_ajax_complete(xhr, ops, successed ? AJAX_STATE_SUCCESS : AJAX_STATE_FAILURE);
+        };
+    }
+
+    //触发ajax回调函数
+    function fire_ajax_complete(xhr, ops, state) {
+        ops.state = state;
+        if (state == AJAX_STATE_TIMEDOUT) ops.timedout = true;
+
+        ops._end = Date.now();
+        ops.time = ops._end - ops._begin;
+
+        if (state == AJAX_STATE_SUCCESS) fire(ops.success, ops, ops.response, ops, xhr);
+        else fire(ops.error, ops, ops, xhr);
+
+        fire(ops.complete, ops, ops, xhr);
+    }
+
+    //简化ajax调用
+    function ajax_simple_send(url, data, success, error, ops) {
+        if (isFunc(data)) {
+            error = success;
+            success = data;
+            data = undefined;
+        }
+
+        return ajax_send(url, extend({ data: data, success: success, error: error }, ops));
+    }
+
+    var Ajax = {
+        getXHR: ajax_create,
+
+        ajaxSetup: ajax_setup,
+
+        ajax: ajax_send,
+
+        get: function (url, data, success, error) {
+            return ajax_simple_send(url, data, success, error);
+        },
+        post: function (url, data, success, error) {
+            return ajax_simple_send(url, data, success, error, { type: HTTP_METHOD_POST });
+        },
+        getJSON: function (url, data, success, error) {
+            return ajax_simple_send(url, data, success, error, { dataType: "json" });
+        },
+        postJSON: function (url, data, success, error) {
+            return ajax_simple_send(url, data, success, error, { type: HTTP_METHOD_POST, dataType: "json" });
+        },
+
+        jsonp: function (url, data, success, error) {
+            return ajax_simple_send(url, data, success, error, { dataType: "jsonp" });
+        }
+    };
+
+    //---------------------- export ----------------------
+
+    Q.Ajax = Ajax;
+
+    extend(Q, Ajax);
+
+})();
+
+﻿/*
 * Q.query.js CSS选择器 from mojoQuery v1.5
 * Copyright (c) 2009 scott.cgi
 * https://github.com/scottcgi/MojoJS
 
+* author:devin87@qq.com
+* update:2015/06/11 10:35
+
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
 * add matches
-
-* update:2015/06/11 10:35
 */
 (function (undefined) {
     "use strict";
@@ -2466,2169 +4662,9 @@
 })();
 
 ﻿/*
-* Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
-* author:devin87@qq.com  
-* update:2015/07/15 11:16
-*/
-(function (undefined) {
-    "use strict";
-
-    var isObject = Q.isObject,
-        isFunc = Q.isFunc,
-        isHttpURL = Q.isHttpURL,
-
-        getType = Q.type,
-
-        makeArray = Q.makeArray,
-        extend = Q.extend,
-
-        fire = Q.fire,
-        async = Q.async,
-
-        waitFor = Q.waitFor;
-
-    var window = Q.G,
-        document = window.document,
-
-        html = document.documentElement,
-        head = document.head || document.getElementsByTagName("head")[0],
-
-        is_quirk_mode = document.compatMode == "BackCompat",
-
-        body,
-        root;
-
-    var encode_url_param = encodeURIComponent;
-
-    //解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
-    function decode_url_param(param) {
-        try {
-            return decodeURIComponent(param);
-        } catch (e) {
-            return param;
-        }
-    }
-
-    //将对象转为查询字符串
-    function to_param_str(obj) {
-        if (!obj) return "";
-        if (typeof obj == "string") return obj;
-
-        var tmp = [];
-
-        Object.forEach(obj, function (k, v) {
-            if (typeof v != "function") tmp.push(encode_url_param(k) + "=" + (v != undefined ? encode_url_param(v) : ""));
-        });
-
-        return tmp.join("&");
-    }
-
-    //连接url和查询字符串
-    function join_url(url) {
-        var params = [], args = arguments;
-        for (var i = 1, len = args.length; i < len; i++) {
-            var param = args[i];
-            if (param) params.push(to_param_str(param));
-        }
-
-        var index = url.indexOf("#"), hash = "";
-        if (index != -1) {
-            hash = url.slice(index);
-            url = url.slice(0, index);
-        }
-
-        var str_params = params.join("&");
-        if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;
-
-        return url + hash;
-    }
-
-    //解析url参数 eg:url?id=1
-    function parse_url_params(search) {
-        if (!search) search = location.search;
-
-        if (search.charAt(0) == "?") search = search.slice(1);
-        if (!search) return {};
-
-        var list = search.split("&"), map = {};
-
-        for (var i = 0, len = list.length; i < len; i++) {
-            //跳过空字符串
-            if (!list[i]) continue;
-
-            var kv = list[i].split("="),
-                key = kv[0],
-                value = kv[1];
-
-            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
-        }
-
-        return map;
-    }
-
-    //编码或解码查询字符串
-    function process_url_param(obj) {
-        return isObject(obj) ? to_param_str(obj) : parse_url_params(obj);
-    }
-
-    //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
-    function parse_url_hash(hash) {
-        if (!hash) hash = location.hash;
-
-        var nav = hash, param;
-
-        if (hash) {
-            var index = hash.indexOf("!/");
-            if (index != -1) {
-                nav = hash.slice(0, index);
-                param = hash.slice(index + 2);
-            }
-        }
-
-        return { nav: nav, param: param };
-    }
-
-    //获取页名称
-    function get_page_name(path) {
-        var pathname = (path || location.pathname).toLowerCase().replace(/\\/g, "/"),
-            index = pathname.lastIndexOf("/");
-
-        return index != -1 ? pathname.slice(index + 1) : pathname;
-    }
-
-    var map_loaded_resource = {},
-        GUID_RESOURCE = Date.now(),
-
-        //LOAD_READY = 0,
-        LOAD_PROCESSING = 1,
-        LOAD_COMPLETE = 2;
-
-    //通过创建html标签以载入资源
-    //init:初始化函数,返回html标签 eg:init(url) -> script|link
-    function load_with_html(urls, callback, ops, init) {
-        var list = makeArray(urls), length = list.length;
-        if (length <= 0) return;
-
-        ops = ops || {};
-        if (isObject(callback)) {
-            ops = callback;
-            callback = ops.complete;
-        }
-
-        var create_element = ops.init || init,
-            count = 0;
-
-        var afterLoad = function (url, element) {
-            if (map_loaded_resource[url] == LOAD_COMPLETE) return;
-            map_loaded_resource[url] = LOAD_COMPLETE;
-
-            if (ops.removed) head.removeChild(element);
-
-            fire(ops.after, element, url, element);
-
-            doComplete(url);
-        };
-
-        //所有资源加载完毕
-        var doComplete = function (url) {
-            if (++count >= length) fire(callback, undefined, url);
-        };
-
-        list.forEach(function (url) {
-            if (ops.cache === false) url = join_url(url, "_=" + (++GUID_RESOURCE))
-
-            //避免加载重复资源
-            if (ops.once !== false && map_loaded_resource[url]) {
-                //已加载过,直接返回
-                if (map_loaded_resource[url] == LOAD_COMPLETE) return doComplete(url);
-
-                //正在加载,等待加载完成
-                return waitFor(function () {
-                    return map_loaded_resource[url] == LOAD_COMPLETE;
-                }, function () {
-                    doComplete(url);
-                });
-            }
-
-            var element = create_element(url);
-
-            map_loaded_resource[url] = LOAD_PROCESSING;
-
-            element.onreadystatechange = function () {
-                if (this.readyState == "loaded" || this.readyState == "complete") afterLoad(url, this);
-            };
-
-            element.onload = function () {
-                afterLoad(url, this);
-            };
-
-            fire(ops.before, element, url, element);
-
-            head.insertBefore(element);
-        });
-
-        list = null;
-    }
-
-    //加载脚本文件
-    //callback:回调函数
-    function loadJS(urls, callback, ops) {
-        load_with_html(urls, callback, ops, function (url) {
-            var script = document.createElement("script");
-            script.type = "text/javascript";
-            script.src = url;
-
-            return script;
-        });
-    }
-
-    //加载样式文件
-    //callback:回调函数
-    function loadCSS(urls, callback, ops) {
-        load_with_html(urls, callback, ops, function (url) {
-            var link = document.createElement("link");
-            link.type = "text/css";
-            link.rel = "stylesheet";
-            link.href = url;
-
-            return link;
-        });
-    }
-
-    //---------------------- browser.js ----------------------
-
-    var browser_ie,
-        engine_name = "unknown",
-        engine = {};
-
-    //ie11 开始不再保持向下兼容(例如,不再支持 ActiveXObject、attachEvent 等特性)
-    if (window.ActiveXObject || window.msIndexedDB) {
-        //window.ActiveXObject => ie10-
-        //window.msIndexedDB   => ie11+
-
-        engine.ie = browser_ie = document.documentMode || (!!window.XMLHttpRequest ? 7 : 6);
-        engine["ie" + (browser_ie < 6 ? 6 : browser_ie)] = true;
-
-        engine_name = "trident";
-    } else if (window.opera) {
-        engine_name = "opera";
-    } else if (window.mozInnerScreenX != undefined || isFunc(document.getBoxObjectFor)) {
-        //document.getBoxObjectFor => firefox3.5-
-        //window.mozInnerScreenX   => firefox3.6+
-        engine_name = "gecko";
-    } else if (window.WebKitPoint || window.devicePixelRatio) {
-        //window.WebKitPoint => chrome8+
-        engine_name = "webkit";
-    }
-
-    engine[engine_name] = true;
-
-    extend(Q, engine);
-
-    engine.name = engine_name;
-
-    //----------------------- JSON.js -----------------------
-
-    var has = Object.prototype.hasOwnProperty,
-
-        JSON_SPECIAL = { '\b': '\\b', '\t': '\\t', '\n': '\\n', '\f': '\\f', '\r': '\\r', '"': '\\"', '\\': '\\\\' },
-        JSON_NULL = "null";
-
-    //字符转义
-    function json_replace(c) {
-        //return JSON_SPECIAL[c]||'\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
-        return JSON_SPECIAL[c] || c;
-    }
-
-    //json转化
-    function json_encode(obj) {
-        switch (getType(obj)) {
-            case "string": return '"' + obj.replace(/[\x00-\x1f\\"]/g, json_replace) + '"';
-            case "list":
-            case "array":
-                var tmp = [];
-                for (var i = 0, len = obj.length; i < len; i++) {
-                    if (typeof obj[i] !== "function") tmp.push(obj[i] != undefined ? json_encode(obj[i]) : JSON_NULL);
-                }
-                return "[" + tmp + "]";
-            case "object":
-            case "arguments":
-                var tmp = [];
-                for (var k in obj) {
-                    if (has.call(obj, k) && typeof obj[k] !== "function") tmp.push("\"" + k + "\":" + json_encode(obj[k]));
-                }
-                return "{" + tmp.toString() + "}";
-            case "boolean": return obj + "";
-            case "number": return isFinite(obj) ? obj + "" : JSON_NULL;
-            case "date": return isFinite(obj.valueOf()) ? obj.toUTC().format("yyyy-MM-ddThh:mm:ss.SZ") : JSON_NULL;
-            case "function": return;
-            default: return typeof obj == "object" ? "{}" : JSON_NULL;
-        }
-    }
-
-    //json解析
-    //secure:是否进行安全检测
-    function json_decode(text, secure) {
-        //安全检测
-        if (secure !== false && !/^[\],:{}\s]*$/.test(text.replace(/\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g, "@").replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, "]").replace(/(?:^|:|,)(?:\s*\[)+/g, ""))) throw new Error("JSON SyntaxError");
-        try {
-            return (new Function("return " + text))();
-        } catch (e) { }
-    }
-
-    if (!window.JSON) {
-        window.JSON = {
-            stringify: json_encode,
-            parse: json_decode
-        };
-    }
-
-    JSON.encode = json_encode;
-    JSON.decode = json_decode;
-
-    //------------------------------- cookie.js -------------------------------
-    //解析cookie值
-    function parseCookieValue(s) {
-        if (s.indexOf('"') === 0) s = s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-
-        return decode_url_param(s.replace(/\+/g, ' '));
-    }
-
-    //读取cookie值或返回整个对象
-    function getCookie(key) {
-        var result = key ? undefined : {},
-            cookies = document.cookie ? document.cookie.split('; ') : [];
-
-        for (var i = 0, len = cookies.length; i < len; i++) {
-            var parts = cookies[i].split('='),
-                name = decode_url_param(parts[0]),
-                cookie = parts.slice(1).join('=');
-
-            if (key && key === name) {
-                result = parseCookieValue(cookie);
-                break;
-            }
-
-            if (!key && (cookie = parseCookieValue(cookie)) !== undefined) {
-                result[name] = cookie;
-            }
-        }
-
-        return result;
-    }
-
-    //设置cookie
-    function setCookie(key, value, ops) {
-        ops = ops || {};
-
-        var expires = ops.expires;
-        if (typeof expires === "number") expires = new Date().add("d", expires);
-
-        document.cookie = [
-            encode_url_param(key), '=', encode_url_param(value),
-            expires ? '; expires=' + expires.toUTCString() : '',
-            ops.path ? '; path=' + ops.path : '',
-            ops.domain ? '; domain=' + ops.domain : '',
-            ops.secure ? '; secure' : ''
-        ].join('');
-    }
-
-    //移除cookie
-    function removeCookie(key) {
-        if (getCookie(key) != undefined) setCookie(key, '', { expires: -1 });
-    }
-
-    //清空cookie
-    function clearCookie() {
-        var cookies = document.cookie ? document.cookie.split('; ') : [];
-        for (var i = 0, len = cookies.length; i < len; i++) {
-            var parts = cookies[i].split('='),
-                key = decode_url_param(parts[0]);
-
-            removeCookie(key);
-        }
-    }
-
-    var cookie = {
-        get: getCookie,
-        set: setCookie,
-        remove: removeCookie,
-
-        clear: clearCookie
-    };
-
-    //------------------------------- Storage.js -------------------------------
-    //type:localStorage | sessionStorage
-    //useCookie:在其它特性不支持的情况下是否启用cookie模拟
-    function Storage(type, useCookie) {
-        var isLocal = type != "sessionStorage";
-
-        if (!isLocal && !location.host) return;
-
-        var STORE_NAME = type,
-
-            storage = window[STORE_NAME],
-            adapter = storage && "getItem" in storage ? "storage" : null;
-
-        if (!adapter) {
-            var userData = document.documentElement, TEST_KEY = "_Q_";
-
-            try {
-                //ie userdata
-                userData.addBehavior('#default#userdata');
-                //7天后过期
-                if (isLocal) userData.expires = new Date().add("d", 7).toUTCString();
-
-                STORE_NAME = location.hostname || "local";
-                userData.save(STORE_NAME);
-
-                storage = {
-                    getItem: function (key) {
-                        userData.load(STORE_NAME);
-                        return userData.getAttribute(key);
-                    },
-                    setItem: function (key, value) {
-                        userData.setAttribute(key, value);
-                        userData.save(STORE_NAME);
-                    },
-                    removeItem: function (key) {
-                        userData.removeAttribute(key);
-                        userData.save(STORE_NAME);
-                    },
-                    clear: function () {
-                        userData.load(STORE_NAME);
-
-                        var now = new Date().add("d", -1);
-                        userData.expires = now.toUTCString();
-                        userData.save(STORE_NAME);
-                    }
-                };
-
-                if (storage.getItem(TEST_KEY) === undefined) {
-                    storage.setItem(TEST_KEY, 1);
-                    storage.removeItem(TEST_KEY);
-                }
-
-                adapter = "userdata";
-            } catch (e) { }
-
-            //cookie 模拟
-            if (!adapter && useCookie) {
-
-                storage = {
-                    getItem: getCookie,
-                    //setItem: setCookie,
-                    setItem: isLocal ? function (key, value) {
-                        setCookie(key, value, { expires: 7 });
-                    } : setCookie,
-                    removeItem: removeCookie,
-                    clear: clearCookie
-                };
-
-                adapter = "cookie";
-            }
-        }
-
-        var support = !!adapter;
-
-        var store = {
-            //是否支持本地缓存
-            support: support,
-
-            //适配器:storage|userdata|cookie|null
-            adapter: adapter,
-
-            //获取本地缓存
-            get: function (key, isJSON) {
-                if (support) {
-                    try {
-                        var value = storage.getItem(key);
-                        return isJSON ? (value ? JSON.parse(value) : null) : value;
-                    } catch (e) { }
-                }
-
-                return undefined;
-            },
-            //设置本地缓存
-            set: function (key, value) {
-                if (support) {
-                    try {
-                        storage.setItem(key, typeof value == "string" ? value : JSON.stringify(value));
-                        return true;
-                    } catch (e) { }
-                }
-
-                return false;
-            },
-            //删除本地缓存
-            remove: function (key) {
-                if (support) {
-                    try {
-                        storage.removeItem(key);
-                        return true;
-                    } catch (e) { }
-                }
-
-                return false;
-            },
-            //清空本地缓存
-            clear: function () {
-                if (support) {
-                    try {
-                        storage.clear();
-                        return true;
-                    } catch (e) { }
-                }
-
-                return false;
-            }
-        };
-
-        return store;
-    }
-
-    //----------------------- view -----------------------
-
-    //页面视图
-    var view = {
-        //获取可用宽高
-        getSize: function () {
-            return { width: root.clientWidth, height: root.clientHeight };
-        },
-        //获取可用宽度
-        getWidth: function () {
-            return root.clientWidth;
-        },
-        //获取可用高度
-        getHeight: function () {
-            return root.clientHeight;
-        },
-        //获取页面宽度(包括滚动条)
-        getScrollWidth: function () {
-            //fix webkit bug:document.documentElement.scrollWidth等不能准确识别
-            return Math.max(html.scrollWidth, body.scrollWidth);
-        },
-        //获取页面高度(包括滚动条)
-        getScrollHeight: function () {
-            //fix webkit bug
-            return Math.max(html.scrollHeight, body.scrollHeight);
-        },
-        //获取左边的滚动距离
-        getScrollLeft: function () {
-            //fix webkit bug
-            return html.scrollLeft || body.scrollLeft;
-        },
-        //获取上边的滚动距离
-        getScrollTop: function () {
-            //fix webkit bug
-            return html.scrollTop || body.scrollTop;
-        }
-    };
-
-    //---------------------- 其它 ----------------------
-
-    //是否是输入按键
-    function isInputKey(code) {
-        //65-90   : A-Z
-        //32      : 空格键
-        //229     : 中文输入
-        //48-57   : 大键盘0-9
-        //96-105  : 小键盘0-9
-        //106-111 : * + Enter - . / 
-        if ((code >= 65 && code <= 90) || code == 32 || code == 229 || (code >= 48 && code <= 57) || (code >= 96 && code <= 111 && code != 108)) return true;
-
-        //186-192 : ;: =+ ,< -_ .> /? `~ 
-        //219-222 : [{ \| ]} '"
-        if ((code >= 186 && code <= 192) || (code >= 219 && code <= 222)) return true;
-
-        //8       : BackSpace
-        //46      : Delete   
-        if (code == 8 || code == 46) return true;
-
-        return false;
-    };
-
-    //判断指定路径与当前页面是否同域(包括协议检测 eg:http与https不同域)
-    function isSameHost(url) {
-        if (!isHttpURL(url)) return true;
-
-        var start = RegExp.lastMatch.length,
-            end = url.indexOf("/", start),
-            host = url.slice(0, end != -1 ? end : undefined);
-
-        return host.toLowerCase() == (location.protocol + "//" + location.host).toLowerCase();
-    }
-
-    //清除文本选区
-    function clearSelection() {
-        if (window.getSelection) {
-            var sel = getSelection();
-            if (sel.removeAllRanges) sel.removeAllRanges();
-            else if (sel.empty) sel.empty();    //old chrome and safari
-        } else if (document.selection) {   //ie
-            document.selection.empty();
-        }
-    }
-
-    //---------------------- export ----------------------
-
-    function ready(fn) {
-        waitFor(function () { return document.body; }, fn);
-    }
-
-    extend(Q, {
-        html: html,
-        head: head,
-        quirk: is_quirk_mode,
-
-        ready: ready,
-
-        encode: encode_url_param,
-        decode: decode_url_param,
-
-        param: process_url_param,
-        join: join_url,
-
-        parseHash: parse_url_hash,
-        getPageName: get_page_name,
-
-        loadJS: loadJS,
-        loadCSS: loadCSS,
-
-        engine: engine,
-
-        isInputKey: isInputKey,
-        isSameHost: isSameHost,
-
-        clearSelection: clearSelection,
-
-        cookie: cookie,
-        store: new Storage("localStorage", true),
-        session: new Storage("sessionStorage", true),
-        view: view,
-
-        Storage: Storage
-    });
-
-    //调用涉及到 body 操作的方法时,推荐在body标签闭合之前引入 Q.core.js 库
-    function init() {
-        Q.body = body = document.body;
-        Q.root = root = is_quirk_mode ? body : html;
-    }
-
-    //确保 document.body 已就绪
-    if (document.body) init();
-    else async(init, 0);
-
-    //暴露接口
-    window.request = parse_url_params();
-
-})();
-
-﻿/*
-* Q.dom.js DOM操作
-* author:devin87@qq.com
-* update:2015/07/15 11:16
-*/
-(function (undefined) {
-    "use strict";
-
-    var window = Q.G,
-        document = window.document,
-        html = Q.html,
-        head = Q.head,
-
-        isObject = Q.isObject,
-        extend = Q.extend,
-        makeArray = Q.makeArray,
-
-        is_quirk_mode = Q.quirk,
-        browser_ie = Q.ie,
-
-        view = Q.view;
-
-    //----------------------- DOM操作 -----------------------
-
-    //骆驼命名法
-    function camelCase(key) {
-        return key.replace(/-([a-z])/ig, function (s, s1) { return s1.toUpperCase(); });
-    }
-
-    var map_prop_name = {
-        "class": "className",
-        "for": "htmlFor",
-        "html": "innerHTML"
-    };
-
-    var map_attr_name = {
-        "className": "class",
-        "htmlFor": "for"
-    };
-
-    //修正DOM属性名(property)
-    function get_prop_name(name) {
-        return map_prop_name[name] || name;
-    }
-
-    //修正HTML属性名(attribute)
-    function get_attr_name(name) {
-        return map_attr_name[name] || name;
-    }
-
-    //获取属性(attribute)值
-    function get_attr(ele, key) {
-        //for IE7-
-        if (key == "style") return ele.style.cssText;
-
-        return ele.getAttribute(get_attr_name(key));
-    }
-
-    //设置或移除属性(attribute)值
-    function set_attr(ele, key, value) {
-        if (value !== null) {
-            //for IE7-
-            if (key == "style") ele.style.cssText = value;
-            else ele.setAttribute(get_attr_name(key), value);
-        } else {
-            ele.removeAttribute(get_attr_name(key));
-        }
-    }
-
-    //获取或设置元素属性(attribute)值
-    function attr(ele, key, value) {
-        if (typeof key == "string") {
-            if (value === undefined) return get_attr(ele, key);
-            return set_attr(ele, key, value);
-        }
-
-        Object.forEach(key, function (k, v) {
-            set_attr(ele, k, v);
-        });
-    }
-
-    //获取或设置元素属性(property)值
-    function prop(ele, key, value) {
-        if (typeof key == "string") {
-            key = get_prop_name(key);
-            if (value === undefined) return ele[key];
-            ele[key] = value;
-        } else {
-            Object.forEach(key, function (k, v) {
-                ele[get_prop_name(k)] = v;
-            });
-        }
-    }
-
-    //是否支持通过设置css为null来取消内联样式
-    function support_set_css_null() {
-        var box = document.createElement("div");
-        box.style.border = "1px solid red";
-
-        try { box.style.border = null; } catch (e) { }
-
-        return !box.style.border;
-    }
-
-    var SUPPORT_SET_CSS_NULL = support_set_css_null(),
-
-        getComputedStyle = window.getComputedStyle,
-        _parseFloat = parseFloat,
-
-        _CSS_FLOAT_NAME,
-        _getComputedStyle,
-        _getStyle;
-
-
-    //IE9+、w3c浏览器
-    if (getComputedStyle) {
-        _CSS_FLOAT_NAME = "cssFloat";
-
-        _getComputedStyle = function (ele) {
-            return getComputedStyle(ele, null);
-        };
-
-        //获取样式值
-        _getStyle = function (ele, styles, key) {
-            return styles[key != "float" ? key : _CSS_FLOAT_NAME];
-        };
-    } else {
-        _CSS_FLOAT_NAME = "styleFloat";
-
-        //IE6、7、8 etc.
-        _getComputedStyle = function (ele) {
-            return ele.currentStyle;
-        };
-
-        //单位转换
-        var _toPX = function (el, value) {
-            var style = el.style, left = style.left, rsLeft = el.runtimeStyle.left;
-            el.runtimeStyle.left = el.currentStyle.left;
-            style.left = value || 0;
-
-            var px = style.pixelLeft;
-            style.left = left; //还原数据
-            el.runtimeStyle.left = rsLeft; //还原数据
-
-            return px + "px";
-        };
-
-        var map_border_width_fix = is_quirk_mode || browser_ie > 7 ? { thin: "1px", medium: "3px", thick: "5px" } : { thin: "2px", medium: "4px", thick: "6px" },
-
-            RE_OPACITY_VALUE = /opacity=([^)]*)/;
-
-        //获取样式值
-        _getStyle = function (ele, styles, key) {
-            switch (key) {
-                case "opacity":
-                    var m = styles.filter.match(RE_OPACITY_VALUE);
-                    return m ? (_parseFloat(m[1]) || 0) / 100 : 1;
-                case "float": return styles[_CSS_FLOAT_NAME];
-            }
-
-            var value = styles[key];
-
-            //转换可度量的值
-            if (/(em|pt|mm|cm|pc|in|ex|rem|vw|vh|vm|ch|gr)$/.test(value)) {
-                return _toPX(ele, value);
-            }
-
-            //转换百分比，不包括字体
-            if (/%$/.test(value) && key != "fontSize") {
-                return _getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
-            }
-
-            //计算边框宽度
-            if (/^border.+Width$/.test(key)) {
-                var borderStyle = key.replace("Width", "Style");
-                return value == "medium" && styles[borderStyle] == "none" ? "0px" : map_border_width_fix[value] || value;
-            }
-
-            return value;
-        };
-    }
-
-    //获取样式值并解析为数字
-    function _getStyleFloat(ele, key, styles) {
-        return _parseFloat(_getStyle(ele, styles || _getComputedStyle(ele), key)) || 0;
-    }
-
-    //获取元素宽度
-    function getWidth(ele) {
-        if (is_quirk_mode && browser_ie < 10) return ele.offsetWidth;
-
-        var value = ele.clientWidth;
-
-        //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也获取不到宽度
-        if (!value) value = ele.offsetWidth - _getStyleFloat(ele, "borderLeftWidth") - _getStyleFloat(ele, "borderRightWidth");
-
-        return value - _getStyleFloat(ele, "paddingLeft") - _getStyleFloat(ele, "paddingRight");
-    }
-
-    //获取元素高度
-    function getHeight(ele) {
-        if (is_quirk_mode && browser_ie < 10) return ele.offsetHeight;
-
-        var value = ele.clientHeight;
-
-        if (!value) value = ele.offsetWidth - _getStyleFloat(ele, "borderTopWidth") - _getStyleFloat(ele, "borderBottomWidth");
-
-        return value - _getStyleFloat(ele, "paddingTop") - _getStyleFloat(ele, "paddingBottom");
-    }
-
-    //获取或设置元素的宽度
-    function width(ele, value, flag) {
-        if (value === undefined) return getWidth(ele);
-
-        setStyle(ele, "width", value + (flag ? getWidth(ele) : 0));
-    }
-
-    //获取或设置元素的高度
-    function height(ele, value, flag) {
-        if (value === undefined) return getHeight(ele);
-
-        setStyle(ele, "height", value + (flag ? getHeight(ele) : 0));
-    }
-
-    //获取或设置元素宽高
-    function size(ele, w, h, flag) {
-        if (w === undefined && h === undefined) return { width: getWidth(ele), height: getHeight(ele) };
-
-        if (w != undefined) width(ele, w, flag);
-        if (h != undefined) height(ele, h, flag);
-    }
-
-    //获取元素当前样式(包括外部样式和嵌入样式)
-    function getStyle(ele, key) {
-        if (key == "width") return getWidth(ele);
-        if (key == "height") return getHeight(ele);
-
-        return _getStyle(ele, _getComputedStyle(ele), camelCase(key));
-    }
-
-    //移除指定内联样式
-    function removeCss(ele, key) {
-        if (SUPPORT_SET_CSS_NULL) {
-            ele.style[key == "float" ? _CSS_FLOAT_NAME : camelCase(key)] = null;
-            return;
-        }
-
-        var cssText = ele.style.cssText;
-        if (cssText) ele.style.cssText = cssText.drop(key + "(-[^:]+)?\\s*:[^;]*;?", "gi").trim();
-    }
-
-    //设置样式时以下值若是数字,则自动补上单位
-    var map_css_require_unit = ["width", "height", "left", "right", "top", "bottom"].toMap(true);
-
-    //设置元素的样式
-    function setStyle(ele, key, value) {
-        //移除指定内联样式
-        if (value === null) return removeCss(ele, key);
-
-        switch (key) {
-            case "float": ele.style[_CSS_FLOAT_NAME] = value; break;
-            case "opacity":
-                if (value <= 1) value *= 100;
-                if (ele.style.opacity != undefined) ele.style.opacity = value / 100;
-                else if (ele.style.filter != undefined) ele.style.filter = "alpha(opacity=" + value + ")";
-                break;
-            default: ele.style[camelCase(key)] = typeof value == "number" && map_css_require_unit[key] ? value + "px" : value; break;
-        }
-    }
-
-    //获取或设置元素样式
-    function css(ele, key, value) {
-        if (typeof key == "string") {
-            if (value === undefined) return getStyle(ele, key);
-            return setStyle(ele, key, value);
-        }
-
-        Object.forEach(key, function (k, v) {
-            setStyle(ele, k, v);
-        });
-    }
-
-    //设置元素透明
-    function setOpacity(ele, value) {
-        setStyle(ele, "opacity", value);
-    }
-
-    var map_node_display = {};
-
-    //获取元素默认display值  eg:tr => table-row
-    function defaultDisplay(nodeName) {
-        var display = map_node_display[nodeName];
-        if (display) return display;
-
-        var node = createEle(nodeName);
-        Q.body.appendChild(node);
-
-        display = getStyle(node, "display");
-        if (!display || display == "none") display = "block";
-
-        Q.body.removeChild(node);
-
-        map_node_display[nodeName] = display;
-
-        return display;
-    }
-
-    //显示元素
-    function cssShow(ele) {
-        ele.style.display = "";
-
-        if (getStyle(ele, "display") == "none") setStyle(ele, "display", defaultDisplay(ele.nodeName));
-    }
-
-    //隐藏元素
-    function cssHide(ele) {
-        ele.style.display = "none";
-    }
-
-    //元素是否隐藏
-    function isHidden(ele) {
-        return getStyle(ele, "display") == "none";
-    }
-
-    //自动判断并切换元素显示或隐藏
-    function cssToggle(ele) {
-        isHidden(ele) ? cssShow(ele) : cssHide(ele);
-    }
-
-    //获取元素偏移 {left,top,width,height}
-    function getOffset(ele) {
-        //support:IE6+ | FF3.0+ | Chrome1+ | Safari4+ | Opera9.5+
-        //在IE、Firefox、Opera中getBoundingClientRect性能比offset迭代(offsetLeft、offsetTop)快1-4倍,Chrome中2者差不多
-        //bug:IE6、7会多出2px,IE8在根元素上会少2px,使用 css: html{margin:0;}后,IE7、8问题依旧,IE6(XP)会在body上多出2px
-        var root = Q.root,
-            rect = ele.getBoundingClientRect(),
-
-            left = rect.left + (window.pageXOffset || root.scrollLeft) - root.clientLeft,
-            top = rect.top + (window.pageYOffset || root.scrollTop) - root.clientTop;
-
-        //IE6根元素
-        if (left < 0) left = 0;
-        if (top < 0) top = 0;
-
-        //仅IE7根元素得出的宽高不包括滚动条的宽高
-        return { left: left, top: top, width: rect.right - rect.left, height: rect.bottom - rect.top };
-    }
-
-    //设置元素偏移
-    function setOffset(ele, x, y, f) {
-        var fix = { left: 0, top: 0 };
-        if (f) fix = getOffset(ele);
-
-        setCssIfNot(ele, "position", "absolute");
-
-        if (x !== undefined) setStyle(ele, "left", x + fix.left);
-        if (y !== undefined) setStyle(ele, "top", y + fix.top);
-    }
-
-    //获取或设置元素偏移
-    function offset(ele, x, y, f) {
-        if (x === undefined && y === undefined) return getOffset(ele);
-
-        setOffset(ele, x, y, f)
-    }
-
-    //获取相对pNode元素的偏移
-    function getPos(ele, pNode) {
-        if (!pNode) pNode = ele.offsetParent;
-
-        var offset = getOffset(ele),
-            poffset = getOffset(pNode);
-
-        offset.left -= poffset.left + _getStyleFloat(pNode, "borderLeftWidth") + _getStyleFloat(ele, "marginLeft");
-        offset.top -= poffset.top + _getStyleFloat(pNode, "borderTopWidth") + _getStyleFloat(ele, "marginTop");
-
-        return offset;
-    }
-
-    //当元素的css值与要设置的css值不同时,设置css
-    function setCssIfNot(ele, key, value) {
-        if (ele && getStyle(ele, key) != value) setStyle(ele, key, value);
-    }
-
-    //设置元素居中显示(absolute定位)
-    function setCenter(ele) {
-        setCssIfNot(ele, "position", "absolute");
-
-        var size = view.getSize(),
-            offset = getOffset(ele.offsetParent),
-
-            left = Math.round((size.width - ele.offsetWidth) / 2) - offset.left + view.getScrollLeft(),
-            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop();
-
-        css(ele, { left: Math.max(left, 0), top: Math.max(top, 0) });
-    }
-
-    var NODE_PREV = "previousSibling",
-        NODE_NEXT = "nextSibling",
-        NODE_FIRST = "firstChild",
-        NODE_LAST = "lastChild",
-        NODE_PARENT = "parentNode";
-
-    //遍历元素节点
-    function walk(ele, walk, start, all) {
-        var el = ele[start || walk];
-        var list = [];
-        while (el) {
-            if (el.nodeType == 1) {
-                if (!all) return el;
-                list.push(el);
-            }
-            el = el[walk];
-        }
-        return all ? list : null;
-    }
-
-    //获取上一个元素节点
-    function getPrev(ele) {
-        return ele.previousElementSibling || walk(ele, NODE_PREV, null, false);
-    }
-
-    //获取在当前节点之前的所有元素节点
-    function getAllPrev(ele) {
-        return walk(ele, NODE_PREV, null, true);
-    }
-
-    //获取下一个元素节点
-    function getNext(ele) {
-        return ele.nextElementSibling || walk(ele, NODE_NEXT, null, false);
-    }
-
-    //获取在当前节点之后的所有元素节点
-    function getAllNext(ele) {
-        return walk(ele, NODE_NEXT, null, true);
-    }
-
-    //获取第一个元素子节点
-    function getFirst(ele) {
-        return ele.firstElementChild || walk(ele, NODE_NEXT, NODE_FIRST, false);
-    }
-
-    //获取最后一个元素子节点
-    function getLast(ele) {
-        return ele.lastElementChild || walk(ele, NODE_PREV, NODE_LAST, false);
-    }
-
-    //获取父节点
-    function getParent(ele) {
-        return walk(ele, NODE_PARENT, null, false);
-    }
-
-    //获取所有父节点(父节点及父节点的父节点等等)
-    function getParents(ele) {
-        return walk(ele, NODE_PARENT, null, true);
-    }
-
-    //获取所有子元素节点
-    function getChilds(ele) {
-        //walk方式性能要好于通过childNodes筛选
-        return ele.children ? makeArray(ele.children) : walk(ele, NODE_NEXT, NODE_FIRST, true);
-    }
-
-    //根据标签名获取标签,若当前节点不匹配,则从父节点往上查找
-    //tagName:标签名,大写
-    function findTag(ele, tagName) {
-        while (ele && ele.tagName != "BODY") {
-            if (ele.tagName == tagName) return ele;
-            ele = ele.parentNode;
-        }
-    }
-
-    //创建元素
-    function createEle(tagName, className, html) {
-        var ele = document.createElement(tagName);
-        if (className) ele.className = className;
-        if (html) ele.innerHTML = html;
-
-        return ele;
-    }
-
-    //解析html为元素,默认返回第一个元素节点
-    //all:是否返回所有节点(childNodes)
-    function parseHTML(html, all) {
-        var _pNode = createEle("div", undefined, html);
-
-        return all ? _pNode.childNodes : getFirst(_pNode);
-    }
-
-    //移除节点
-    //node:要移除的节点
-    function removeEle(node) {
-        if (!node) return;
-
-        var pNode = node.parentNode;
-        if (pNode) pNode.removeChild(node);
-    }
-
-    //元素包含比较
-    var containsNode;
-    if (html.contains) {
-        containsNode = function (ele, node) {
-            return ele.contains(node);
-        }
-    } else {
-        containsNode = function (ele, node) {
-            return !!(this.compareDocumentPosition(node) & 16);
-        }
-    }
-
-    //动态创建样式
-    function createStyle(cssText) {
-        var style = createEle("style");
-        style.type = "text/css";
-
-        if (style.styleSheet) style.styleSheet.cssText = cssText;
-        else style.appendChild(document.createTextNode(cssText));
-
-        head.appendChild(style);
-
-        return style;
-    }
-
-    var hasClass, addClass, removeClass, replaceClass, toggleClass;
-
-    if (isObject(html.classList)) {
-        hasClass = function (ele, clsName) {
-            return ele.classList.contains(clsName);
-        };
-
-        addClass = function (ele, clsName) {
-            ele.classList.add(clsName);
-        };
-
-        removeClass = function (ele, clsName) {
-            ele.classList.remove(clsName);
-        };
-
-        replaceClass = function (ele, oldName, clsName) {
-            ele.classList.remove(oldName);
-            ele.classList.add(clsName);
-        };
-
-        toggleClass = function (ele, clsName) {
-            ele.classList.toggle(clsName);
-        };
-    } else {
-        //操作元素className
-        //delName:要删除的className
-        //addName:要添加的className
-        var set_className = function (ele, delName, addName) {
-            var className = ele.className,
-                list = className.split(" "),
-                len = list.length,
-                i = 0;
-
-            if (!delName) {
-                for (; i < len; i++) {
-                    if (list[i] == addName) return;
-                }
-
-                className += " " + addName;
-            } else {
-                var hasName = false, classList = [];
-                for (; i < len; i++) {
-                    if (list[i] != delName) classList.push(list[i]);
-                    else if (list[i] == addName) hasName = true;
-                }
-
-                if (!hasName && addName) classList.push(addName);
-                className = classList.join(" ");
-            }
-
-            ele.className = className;
-        };
-
-        hasClass = function (ele, clsName) {
-            return (ele.className + " ").contains(clsName + " ");
-        };
-
-        addClass = function (ele, clsName) {
-            set_className(ele, undefined, clsName);
-        };
-
-        removeClass = function (ele, clsName) {
-            set_className(ele, clsName, "");
-        };
-
-        replaceClass = function (ele, oldName, clsName) {
-            set_className(ele, oldName, clsName);
-        };
-
-        toggleClass = function (ele, clsName) {
-            hasClass(ele, clsName) ? removeClass(ele, clsName) : addClass(ele, clsName);
-        };
-    }
-
-    //---------------------- 其它 ----------------------
-
-    //将输入框样式设为错误模式
-    function setInputError(input, hasBorder) {
-        if (hasBorder) input.style.borderColor = "red";
-        else input.style.border = "1px solid red";
-
-        input.value = "";
-        input.focus();
-    }
-
-    //恢复输入框默认样式
-    function setInputDefault(input) {
-        removeCss(input, "border");
-    }
-
-    //------------------------- export -------------------------
-
-    extend(Q, {
-        camelCase: camelCase,
-
-        attr: attr,
-        prop: prop,
-
-        width: width,
-        height: height,
-        size: size,
-
-        getStyle: getStyle,
-        setStyle: setStyle,
-        setOpacity: setOpacity,
-        removeCss: removeCss,
-        css: css,
-
-        show: cssShow,
-        hide: cssHide,
-        toggle: cssToggle,
-        isHidden: isHidden,
-
-        offset: offset,
-        getPos: getPos,
-
-        setCssIfNot: setCssIfNot,
-        setCenter: setCenter,
-
-        walk: walk,
-        getPrev: getPrev,
-        getAllPrev: getAllPrev,
-        getNext: getNext,
-        getAllNext: getAllNext,
-        getFirst: getFirst,
-        getLast: getLast,
-        getParent: getParent,
-        getParents: getParents,
-        getChilds: getChilds,
-
-        findTag: findTag,
-        createEle: createEle,
-        parseHTML: parseHTML,
-        removeEle: removeEle,
-        containsNode: containsNode,
-        createStyle: createStyle,
-
-        hasClass: hasClass,
-        addClass: addClass,
-        removeClass: removeClass,
-        replaceClass: replaceClass,
-        toggleClass: toggleClass,
-
-        setInputError: setInputError,
-        setInputDefault: setInputDefault
-    });
-
-})();
-
-﻿/*
-* Q.setTimer.js 计时器
-* author:devin87@qq.com
-* update:2015/06/11 09:50
-*/
-(function (undefined) {
-    "use strict";
-
-    var fire = Q.fire;
-
-    //---------------------- 计时器 ----------------------
-
-    //计时器
-    function setTimer(ops) {
-        var box = ops.box,
-            process = ops.process,
-
-            length = ops.pad ? 2 : 1,
-
-            time = ops.time,
-            step = ops.step || 1,
-            sleep = ops.sleep || 1000,
-
-            str_join = ops.join || "",
-
-            units = ops.units || ["天", "小时", "分", "秒"];
-
-        if ((!box && !process) || time == undefined || isNaN(time)) return;
-
-        var total = +time, timer;
-
-        var pad = function (n, len) {
-            return n > 9 || len == 1 ? n : "0" + n;
-        };
-
-        var update = function () {
-            total += step;
-            if (total < 0) return;
-
-            var t = Date.parts(total),
-                days = t.days,
-                hours = t.hours,
-                mintues = t.mintues,
-                seconds = t.seconds;
-
-            var text = days + units[0] + str_join + pad(hours, length) + units[1] + str_join + pad(mintues, length) + units[2] + str_join + pad(seconds, length) + units[3],
-                result = fire(process, undefined, total, text, days, hours, mintues, seconds);
-
-            if (result !== false) {
-                if (box) box.innerHTML = typeof result == "string" ? result : text;
-                timer = setTimeout(update, sleep);
-            }
-        };
-
-        update();
-
-        var api = {
-            start: update,
-            stop: function () {
-                if (timer) clearTimeout(timer);
-            }
-        };
-
-        return api;
-    }
-
-    //------------------------- export -------------------------
-
-    Q.setTimer = setTimer;
-
-})();
-
-﻿/*
-* Q.event.js 事件处理
-* author:devin87@qq.com  
-* update:2015/07/22 14:49
-*/
-(function (undefined) {
-    "use strict";
-
-    var window = Q.G,
-
-        isFunc = Q.isFunc,
-        isObject = Q.isObject,
-        isArrayLike = Q.isArrayLike,
-
-        makeArray = Q.makeArray,
-        containsNode = Q.containsNode,
-        query = Q.query,
-
-        factory = Q.factory,
-
-        view = Q.view,
-        browser_gecko = Q.gecko;
-
-    //获取原始event对象
-    function get_originalEvent(e) {
-        if (!e) return window.event;
-
-        return e.originalEvent || e;
-    }
-
-    //阻止事件默认行为并停止事件冒泡
-    function stop_event(event, isPreventDefault, isStopPropagation) {
-        var e = get_originalEvent(event);
-
-        //阻止事件默认行为
-        if (isPreventDefault !== false) {
-            if (e.preventDefault) e.preventDefault();
-            else e.returnValue = false;
-        }
-
-        //停止事件冒泡
-        if (isStopPropagation !== false) {
-            if (e.stopPropagation) e.stopPropagation();
-            else e.cancelBubble = true;
-        }
-    }
-
-    //自定义Event对象
-    function QEvent(event) {
-        var e = get_originalEvent(event),
-
-            type = e.type,
-            target = e.target || e.srcElement,
-            relatedTarget = e.relatedTarget || (type == "mouseover" ? e.fromElement : e.toElement),
-            rightClick = e.which == 3 || e.button == 2,
-
-            clientX = e.clientX,
-            clientY = e.clientY,
-
-            keyCode = e.keyCode,
-
-            deltaY = 0,
-
-            self = this;
-
-        //修正为element元素,即nodeType==1
-        while (target && target.nodeType != 1) target = target.parentNode;
-
-        //原生Event对象
-        self.originalEvent = e;
-
-        self.type = type;
-        self.target = target;
-        self.relatedTarget = relatedTarget;
-
-        self.rightClick = rightClick;
-
-        //Mouse Event
-        if (clientX !== undefined) {
-            var x = e.pageX,
-                y = e.pageY;
-
-            if (x == undefined) x = e.x != undefined ? e.x : clientX + view.getScrollLeft();
-            if (y == undefined) y = e.y != undefined ? e.y : clientY + view.getScrollTop();
-
-            self.clientX = clientX;
-            self.clientY = clientY;
-            self.pageX = self.x = x;
-            self.pageY = self.y = y;
-        }
-
-        //Key Event
-        if (keyCode !== undefined) self.keyCode = e.keyCode;
-
-        self.altKey = e.altKey;
-        self.ctrlKey = e.ctrlKey;
-        self.shiftKey = e.shiftKey;
-
-        //Wheel Event
-        if ("wheelDelta" in e) deltaY = e.wheelDelta;
-        else if ("wheelDeltaY" in e) deltaY = e.wheelDeltaY;
-        else if ("deltaY" in e) deltaY = -e.deltaY;
-        else deltaY = -e.detail;
-
-        if (deltaY != 0) deltaY = deltaY > 0 ? 1 : -1;
-
-        //向上滚动为1,向下滚动为-1
-        self.delta = deltaY;
-    }
-
-    factory(QEvent).extend({
-        //阻止事件默认行为
-        preventDefault: function () {
-            stop_event(this, true, false);
-        },
-        //停止事件冒泡
-        stopPropagation: function () {
-            stop_event(this, false, true);
-        },
-        //阻止事件默认行为并停止事件冒泡
-        stop: function () {
-            stop_event(this);
-        }
-    });
-
-    //获取兼容的event对象
-    function fix_event(e) {
-        return new QEvent(e);
-    }
-
-    var EVENT_TYPE_WHEEL = "onwheel" in document || Q.ie >= 9 ? "wheel" : (browser_gecko ? "DOMMouseScroll" : "mousewheel"),
-
-        SUPPORT_W3C_EVENT = !!document.addEventListener,
-        SUPPORT_MOUSE_ENTER_LEAVE = "onmouseenter" in Q.html;
-
-    //添加DOM事件,未做任何封装
-    function addEvent(ele, type, fn) {
-        if (SUPPORT_W3C_EVENT) ele.addEventListener(type, fn, false);
-        else ele.attachEvent("on" + type, fn);  //注意:fn的this并不指向ele
-    }
-
-    //移除DOM事件
-    function removeEvent(ele, type, fn) {
-        if (SUPPORT_W3C_EVENT) ele.removeEventListener(type, fn, false);
-        else ele.detachEvent("on" + type, fn);
-    }
-
-    //获取代理目标元素
-    function get_target(root, ele, selector) {
-        var nodes = query(selector, root);
-        for (var i = 0, len = nodes.length; i < len; i++) {
-            if (containsNode(nodes[i], ele)) return nodes[i];
-        }
-    }
-
-    var map_special = {};
-
-    var bind_as_enter_leave = function (fn) {
-        return function (e) {
-            var target = this,
-                related = e.relatedTarget;
-
-            if (!related || (related !== target && !containsNode(target, related))) {
-                e.type = e.type == "mouseover" ? "mouseenter" : "mouseleave";
-                fn.call(target, e);
-            }
-        }
-    };
-
-    map_special.mouseenter = {
-        type: "mouseover",
-        factory: bind_as_enter_leave
-    };
-
-    map_special.mouseleave = {
-        type: "mouseout",
-        factory: bind_as_enter_leave
-    };
-
-
-    //添加事件
-    function add_event(ele, type, selector, fn, once, stops) {
-        if (type == "wheel" || type == "mousewheel") type = EVENT_TYPE_WHEEL;
-
-        if (once) {
-            var _fn = fn;
-
-            fn = function (e) {
-                _fn.call(this, e);
-
-                removeEvent(ele, e.originalEvent.type, handle);
-            };
-        }
-
-        //mouseenter、mouseleave特殊处理
-        if (!SUPPORT_MOUSE_ENTER_LEAVE || selector) {
-            var special = map_special[type];
-            if (special) {
-                type = special.type;
-                fn = special.factory(fn);
-            }
-        }
-
-        var handle = function (event) {
-            var e = fix_event(event),
-                target,
-                flag = !selector || (target = get_target(ele, e.target, selector));
-
-            if (flag) fn.call(target || ele, e);
-        };
-
-        addEvent(ele, type, handle);
-
-        if (!once) stops.push([ele, type, handle, selector]);
-    }
-
-    //批量添加事件
-    //types:事件类型,多个之间用空格分开;可以为对象
-    //selector:要代理的事件选择器或处理句柄
-    function add_events(elements, types, selector, handle, once) {
-        if (typeof types == "string") {
-            types = types.split(' ');
-
-            if (isFunc(selector)) {
-                once = once || handle;
-                handle = selector;
-                selector = undefined;
-            }
-        } else {
-            if (selector === true || handle === true) once = true;
-            if (selector === true) selector = undefined;
-        }
-
-        var stops = [];
-
-        makeArray(elements).forEach(function (ele) {
-            if (isArrayLike(types)) {
-                makeArray(types).forEach(function (type) {
-                    add_event(ele, type, selector, handle, once, stops);
-                });
-            } else if (isObject(types)) {
-                Object.forEach(types, function (type, handle) {
-                    add_event(ele, type, selector, handle, once, stops);
-                });
-            }
-        });
-
-        //返回移除事件api
-        return {
-            es: stops,
-
-            off: function (types, selector) {
-                remove_events(stops, types, selector);
-            }
-        };
-    }
-
-    //批量移除事件
-    //es:事件句柄对象列表  eg:es => [[ele, type, handle, selector],...]
-    function remove_events(es, types, selector) {
-        var list = es;
-        if (types) {
-            var map_type = types.split(' ').toMap(true);
-            list = list.filter(function (s) {
-                return map_type[s[1]];
-            });
-        }
-
-        if (selector) {
-            list = list.filter(function (s) {
-                return s[3] == selector;
-            });
-        }
-
-        list.forEach(function (s) {
-            removeEvent.apply(undefined, s.slice(0, 3));
-        });
-    }
-
-    //批量添加事件,执行一次后取消
-    function add_events_one(elements, types, selector, handle) {
-        return add_events(elements, types, selector, handler, true);
-    }
-
-    //触发事件
-    function trigger_event(ele, type) {
-        if (isFunc(ele[type])) ele[type]();
-        else if (ele.fireEvent) ele.fireEvent("on" + type);  //ie10-
-        else if (ele.dispatchEvent) {
-            var evt = document.createEvent("HTMLEvents");
-
-            //initEvent接受3个参数:事件类型,是否冒泡,是否阻止浏览器的默认行为
-            evt.initEvent(type, true, true);
-
-            //鼠标事件,设置更多参数
-            //var evt = document.createEvent("MouseEvents");
-            //evt.initMouseEvent(type, true, true, ele.ownerDocument.defaultView, 1, e.screenX, e.screenY, e.clientX, e.clientY, false, false, false, false, 0, null);
-
-            ele.dispatchEvent(evt);
-        }
-    }
-
-    //---------------------- export ----------------------
-
-    Q.Event = QEvent;
-
-    Q.event = {
-        fix: fix_event,
-        stop: stop_event,
-        trigger: trigger_event,
-
-        //原生事件添加(建议使用add)
-        addEvent: addEvent,
-        //原生事件移除
-        removeEvent: removeEvent,
-
-        //添加事件,并返回操作api
-        add: add_events,
-
-        //注意:批量移除事件,与一般事件移除不同;移除事件请使用add返回的api
-        removeEs: remove_events,
-        one: add_events_one
-    };
-
-})();
-
-﻿/*
-* Q.ajax.js Ajax & JSONP
-* author:devin87@qq.com  
-* update:2015/07/15 11:18
-*/
-(function (undefined) {
-    "use strict";
-
-    var window = Q.G,
-
-        isFunc = Q.isFunc,
-        isUInt = Q.isUInt,
-
-        def = Q.def,
-        extend = Q.extend,
-        fire = Q.fire,
-
-        to_param_str = Q.param,
-        combine_url = Q.join,
-
-        browser_ie = Q.ie;
-
-    var is_support_xhr = !!window.XMLHttpRequest,
-        is_http = !!location.host;
-
-    //XMLHTTP支持检测 for IE
-    function ajax_detect() {
-        var xmlhttps = [/*"Msxml2.XMLHTTP.6.0",*/ "Msxml2.XMLHTTP", "Microsoft.XMLHTTP"];
-        for (var i = 0, len = xmlhttps.length; i < len ; i++) {
-            try {
-                new ActiveXObject(xmlhttps[i]);
-
-                return xmlhttps[i];
-            } catch (e) { }
-        }
-    }
-
-    //创建跨浏览器的xmlhttp对象
-    var ajax_create;
-
-    if (is_support_xhr && (!browser_ie || is_http)) {
-        ajax_create = function () {
-            return new XMLHttpRequest();
-        };
-    } else {
-        var ie_xmlhttp = ajax_detect();
-
-        ajax_create = function () {
-            return new ActiveXObject(ie_xmlhttp);
-        };
-    }
-
-    var HTTP_METHOD_GET = "GET",
-        HTTP_METHOD_POST = "POST";
-
-    var global_ajax_settings = {};
-
-    //转为小写
-    function toLower(str, defValue) {
-        return typeof str == "string" ? str.toLowerCase() : defValue;
-    }
-
-    //格式化ajax设置
-    function ajax_option(ops, success, error) {
-        ops = ops || {};
-
-        var get_value = function (prop) {
-            return def(ops[prop], global_ajax_settings[prop]);
-        };
-
-        var data_type = toLower(get_value("dataType") || "html"),
-            timeout = get_value("timeout"),
-            is_ajax = toLower(ops.dataType) != "jsonp";
-
-        return {
-            type: is_ajax ? (get_value("type") || HTTP_METHOD_GET).toUpperCase() : HTTP_METHOD_GET,
-            data: get_value("data"),
-            dataType: data_type,
-
-            jsonp: is_ajax ? undefined : get_value("jsonp") || "jsonpcallback",
-            jsonpCallback: is_ajax ? undefined : get_value("jsonpCallback") || "_q_jsonp",
-
-            mimeType: is_ajax ? toLower(get_value("mimeType") || "text/" + data_type) : undefined,
-
-            charset: toLower(get_value("charset") || "utf-8"),
-
-            async: get_value("async") !== false,
-            cache: get_value("cache") !== false,
-
-            timeout: isUInt(timeout) ? Math.round(timeout) : undefined,
-
-            beforeSend: get_value("beforeSend"),
-            success: success || get_value("success"),
-            error: error || get_value("error"),
-            complete: get_value("complete"),
-
-            headers: is_ajax ? extend(get_value("headers") || {}, {
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept": "*/*"
-            }) : undefined
-        };
-    }
-
-    //设置ajax全局设置
-    function ajax_setup(ops) {
-        extend(global_ajax_settings, ops, true);
-    }
-
-    var ajax_guid = Date.now(),
-
-        //jsonp
-        head = Q.head,
-        opera = window.opera,
-        oldIE = browser_ie < 9,
-        jsonpCount = 0,
-        jsonpCache;
-
-    //创建script元素
-    function createScript(text) {
-        var script = document.createElement("script");
-        script.type = "text/javascript";
-        if (text) script.text = text;
-
-        return script;
-    }
-
-    //jsonp回调函数
-    function jsonpCallback(data) {
-        jsonpCache = [data];
-    }
-
-    //处理jsonp请求
-    //参考 jquery.jsonp.js 实现
-    function jsonp(url, ops) {
-        //beforeSend事件,当返回值为false时,取消jsonp发送
-        if (fire(ops.beforeSend, undefined, ops) === false) return;
-
-        var charset = ops.charset,
-            timeout = ops.timeout,
-            jsonp_param_key = ops.jsonp,
-            jsonp_param_value = ops.jsonpCallback,
-
-            scriptId = jsonpCallback + (++jsonpCount),
-            script_for_error,
-
-            timer;
-
-        url = combine_url(url, jsonp_param_key + "=" + jsonp_param_value);
-        window[jsonp_param_value] = jsonpCallback;
-
-        var dispose = function () {
-            timer && clearTimeout(timer);
-
-            script.onload = script.onerror = script.onreadystatechange = null;
-            //head.removeChild(script);
-            if (script_for_error) head.removeChild(script_for_error);
-        };
-
-        var process_success = function (data) {
-            dispose();
-
-            ops.response = data;
-            fire_ajax_complete(undefined, ops, AJAX_STATE_SUCCESS);
-        };
-
-        var process_error = function (state) {
-            dispose();
-
-            fire_ajax_complete(undefined, ops, state);
-        };
-
-        var script = createScript();
-        if (charset) script.charset = charset;
-
-        //opera11-不支持script的onerror事件
-        if (opera && opera.version() < 11.6) {
-            script.id = scriptId;
-            script_for_error = createScript('document.getElementById("' + scriptId + '").onerror();');
-        } else if (ops.async) {
-            script.async = "async";
-        }
-
-        //ie6-8不支持script的onerror事件,trick
-        //用htmlFor和event属性来保证在readyState == loaded || readyState == complete时，script中的代码已经执行
-        if (oldIE) {
-            script.id = scriptId;
-            script.htmlFor = scriptId;
-            script.event = "onclick";
-        }
-
-        script.onload = script.onerror = script.onreadystatechange = function () {
-            if (script.readyState && /i/.test(script.readyState)) return;
-
-            //手动触发script标签的onclick事件，来保证script中的内容得以执行(ie6-8)
-            try { script.onclick && script.onclick(); } catch (e) { }
-
-            var result = jsonpCache;
-            jsonpCache = 0;
-
-            result ? process_success(result[0]) : process_error(AJAX_STATE_FAILURE);
-        };
-
-        script.src = url;
-
-        //beforeSend事件,当返回值为false时,取消jsonp
-        if (process_ajax_beforeSend(script, ops) === false) return;
-
-        //在IE6上，文档加载完毕之前使用appendChild会出错，而使用insertBefore就不会出错
-        var firstChild = head.firstChild;
-        head.insertBefore(script, firstChild);
-        if (script_for_error) head.insertBefore(script_for_error, firstChild);
-
-        timer = isUInt(timeout) && setTimeout(function () {
-            process_error(AJAX_STATE_TIMEDOUT);
-        }, timeout);
-    }
-
-    //发送一个ajax请求
-    function ajax_send(url, ops) {
-        if (isFunc(ops)) ops = { success: ops };
-
-        //配置处理
-        ops = ajax_option(ops);
-        ops.url = url;
-
-        //队列接口
-        if (ops.queue) return ops.queue.add(url, ops);
-
-        var type = ops.type,
-            headers = ops.headers,
-            str_params = to_param_str(ops.data);
-
-        //强制禁用缓存
-        //若服务器执行了缓存策略,firefox、chrome等仍然会进行缓存
-        //if (!ops.cache) headers["If-Modified-Since"] = "0";
-
-        //禁用缓存
-        if (!ops.cache) {
-            url = combine_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
-        } else {
-            if (type != HTTP_METHOD_POST) url = combine_url(url, str_params);
-        }
-
-        //jsonp单独处理
-        if (ops.jsonp) return jsonp(url, ops);
-
-        if (type == HTTP_METHOD_POST) headers["Content-Type"] = "application/x-www-form-urlencoded";
-        else str_params = null;
-
-        //创建xmlhttp对象
-        var xhr = ajax_create();
-
-        //打开ajax连接
-        xhr.open(type, url, ops.async);
-
-        //设置http头(必须在 xhr.open 之后)
-        Object.forEach(headers, function (key, value) {
-            xhr.setRequestHeader(key, value);
-        });
-
-        //修正ajax乱码
-        if (xhr.overrideMimeType) xhr.overrideMimeType(ops.mimeType + ";charset=" + ops.charset);
-        else ops.needFix = true;
-
-        //beforeSend事件,当返回值为false时,取消ajax发送
-        if (process_ajax_beforeSend(xhr, ops) === false) return;
-
-        //处理ajax超时
-        process_ajax_timeout(xhr, ops);
-
-        //处理ajax回调
-        process_ajax_callback(xhr, ops);
-
-        xhr.send(str_params);
-
-        return xhr;
-    }
-
-    //ajax 执行状态
-    var AJAX_STATE_TIMEDOUT = -1,
-        AJAX_STATE_FAILURE = 0,
-        AJAX_STATE_SUCCESS = 1
-
-    //ajax发送之前
-    function process_ajax_beforeSend(xhr, ops) {
-        ops._begin = Date.now();
-
-        return fire(ops.beforeSend, ops, xhr, ops);
-    }
-
-    //处理ajax超时
-    function process_ajax_timeout(xhr, ops) {
-        var timeout = ops.timeout;
-        if (!timeout) return;
-
-        var ontimeout = function () {
-            fire_ajax_complete(xhr, ops, AJAX_STATE_TIMEDOUT);
-        };
-
-        //原生支持timeout的浏览器
-        //注意:当timeout事件触发时,xhr.readyState可能已经为4了
-        if ("timeout" in xhr) {
-            xhr.timeout = timeout;
-            xhr.ontimeout = ontimeout;
-        } else {
-            //for ie6、7
-            ops.timer = setTimeout(function () {
-                //此处代码需放在 xhr.abort 之前
-                //ie6 调用 xhr.abort 不会触发 onreadystatechange 事件
-                ontimeout();
-
-                xhr.abort();
-            }, timeout);
-        }
-    }
-
-    //获取返回内容
-    function get_responseText(xhr, ops) {
-        var data;
-
-        try {
-            //ie6 bug:当服务器不是utf编码时,可能触发 -1072896748 系统错误
-            data = xhr.responseText;
-
-            if (!ops.needFix || !browser_ie || (ops.charset && ops.charset.startsWith("utf-"))) return data;
-        } catch (e) { }
-
-        //for ie
-        try {
-            var rs = new ActiveXObject("ADODB.RecordSet");
-            rs.fields.append("a", 201, 1);
-            rs.open();
-            rs.addNew();
-            rs(0).appendChunk(xhr.responseBody);
-            rs.update();
-            data = rs(0).value;
-            rs.close();
-        } catch (e) { }
-
-        return data;
-    }
-
-    //获取返回内容
-    function get_response_data(xhr, ops) {
-        var dataType = ops.dataType;
-        if (dataType == "xml") return xhr.responseXML;
-
-        var data = get_responseText(xhr, ops);
-
-        return dataType == "json" ? JSON.parse(data) : data;
-    }
-
-    //处理ajax回调
-    function process_ajax_callback(xhr, ops) {
-        xhr.onreadystatechange = function () {
-            //判断 ops.state 和 xhr.status 以避免重复触发(主要是对timeout而言)
-            //浏览器原生timeout事件触发时,xhr.readyState可能已经为4了
-            if (xhr.readyState != 4 || ops.state != undefined || (ops.timeout && is_http && xhr.status == 0)) return;
-
-            if (ops.timer) {
-                clearTimeout(ops.timer);
-                delete ops.timer;
-            }
-
-            var successed = (xhr.status >= 200 && xhr.status < 400) || (xhr.status == 0 && !is_http);
-            if (successed) ops.response = get_response_data(xhr, ops);
-
-            //触发ajax完成事件
-            fire_ajax_complete(xhr, ops, successed ? AJAX_STATE_SUCCESS : AJAX_STATE_FAILURE);
-        };
-    }
-
-    //触发ajax回调函数
-    function fire_ajax_complete(xhr, ops, state) {
-        ops.state = state;
-        if (state == AJAX_STATE_TIMEDOUT) ops.timedout = true;
-
-        ops._end = Date.now();
-        ops.time = ops._end - ops._begin;
-
-        if (state == AJAX_STATE_SUCCESS) fire(ops.success, ops, ops.response, ops, xhr);
-        else fire(ops.error, ops, ops, xhr);
-
-        fire(ops.complete, ops, ops, xhr);
-    }
-
-    //简化ajax调用
-    function ajax_simple_send(url, data, success, error, ops) {
-        if (isFunc(data)) {
-            error = success;
-            success = data;
-            data = undefined;
-        }
-
-        return ajax_send(url, extend({ data: data, success: success, error: error }, ops));
-    }
-
-    var Ajax = {
-        getXHR: ajax_create,
-
-        ajaxSetup: ajax_setup,
-
-        ajax: ajax_send,
-
-        get: function (url, data, success, error) {
-            return ajax_simple_send(url, data, success, error);
-        },
-        post: function (url, data, success, error) {
-            return ajax_simple_send(url, data, success, error, { type: HTTP_METHOD_POST });
-        },
-        getJSON: function (url, data, success, error) {
-            return ajax_simple_send(url, data, success, error, { dataType: "json" });
-        },
-        postJSON: function (url, data, success, error) {
-            return ajax_simple_send(url, data, success, error, { type: HTTP_METHOD_POST, dataType: "json" });
-        },
-
-        jsonp: function (url, data, success, error) {
-            return ajax_simple_send(url, data, success, error, { dataType: "jsonp" });
-        }
-    };
-
-    //---------------------- export ----------------------
-
-    Q.Ajax = Ajax;
-
-    extend(Q, Ajax);
-
-})();
-
-﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/07/15 11:18
+* update:2015/07/28 16:46
 */
 (function (undefined) {
     "use strict";
@@ -4734,6 +4770,10 @@
     }
 
     Q.factory(SimpleQuery).extend({
+        extend: function (source, forced) {
+            extend(SimpleQuery.prototype, source, forced);
+        },
+
         //缓存元素列表,内部调用
         _set: function () {
             var self = this;
@@ -4952,7 +4992,7 @@
     });
 
     //1个参数,返回对第一个匹配元素的处理结果
-    ["getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
+    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (value) {
@@ -5028,11 +5068,797 @@
         return new SimpleQuery(selector, context);
     }
 
-    $.fn = SimpleQuery;
+    $.fn = SimpleQuery.prototype;
 
     extend($, Q.Ajax);
 
     window.$ = Q.$ = $;
     window.$$ = $.find = querySelectorAll;
+
+})();
+
+﻿/*
+* Q.animate.js 动画 from mojoFx v1.2
+* Copyright (c) 2010 scott.cgi
+
+* author:devin87@qq.com
+* update:2015/07/27 16:52
+*/
+(function (undefined) {
+    "use strict";
+
+    var isNum = Q.isNum,
+        isHidden = Q.isHidden,
+        getStyle = Q.getStyle,
+
+        cssShow = Q.show,
+        cssHide = Q.hide;
+
+    var
+
+		mojoFx = function (arg) {
+		    return new moFx(arg);
+		},
+
+		/**
+		 * Animation object inculde HTMLElements and animation API
+		 * 
+		 * @param {Array | NodeList | HTMLElement} arg
+		 */
+		moFx = function (arg) {
+		    this.elements = arg.length ? arg : [arg];
+		},
+
+		joFx = {
+
+		    easing: {
+		        /**
+                 * @param {Number} t	current time   
+                 * @param {Number} b	beginning value 
+                 * @param {Number} c	change value    
+                 * @param {Number} d	duration        
+                 */
+		        swing: function (t, b, c, d) {
+		            return ((-Math.cos(t / d * Math.PI) / 2) + 0.5) * c + b;
+		        }
+		    },
+
+		    // animation executor time id
+		    timeId: 0,
+
+		    // current animation elements
+		    animEls: [],
+
+		    /**
+			 * Get the animation data on element
+			 * 
+			 * @param {HTMLElement} el HLTMLElement
+			 * @return {Object}        Animation data
+			 */
+		    getElData: function (el) {
+		        var x;
+		        if (!(x = el.mojoData)) {
+		            x = el.mojoData = {};
+		        }
+
+		        if (!x.mojoFx) {
+		            x.mojoFx = {
+		                // animation queue
+		                queue: [],
+
+		                // current animation steps
+		                current: [],
+
+		                // current animation queue step
+		                curStep: [],
+
+		                // whether delay animation queue
+		                isDelay: false,
+
+		                // whether the element in animation array
+		                isAnim: false
+		            };
+		        }
+
+		        return x.mojoFx;
+		    },
+
+		    /**
+			 * Add elements into global animation array
+			 * And elements animation step
+			 * 
+			 * @param {Array}              els  Array of HTMLElement
+			 * @param {Object | Undefined} cfg  Animation configuration object
+			 * @return {Object} joFx
+			 */
+		    add: function (els, cfg) {
+		        var
+					aEls = this.animEls,
+					len = els.length,
+					i = 0,
+					el, data;
+
+		        cfg.els = els;
+
+		        for (; i < len; i++) {
+		            el = els[i];
+
+		            data = this.getElData(el);
+
+		            if (!data.isAnim) {
+		                aEls.push(el);
+		                data.isAnim = true;
+		            }
+
+		            cfg.isQueue ? data.queue.push(cfg) : data.current.push(this.getElStep(el, cfg));
+		        }
+
+		        return this;
+		    },
+
+		    /**
+			 * Get animation step array
+			 * 
+			 * @param {HTMLElement} el  HTMLElement
+			 * @param {Object}      cfg Animation configuration object
+			 * @return {Array}          Animation queue step
+			 */
+		    getElStep: function (el, cfg) {
+		        var
+					step = [],
+					easing, prop, fxs,
+					p, val, fx;
+
+		        step.cfg = {
+		            t: 0,
+		            d: cfg.duration,
+		            args: cfg.args,
+		            callback: cfg.callback
+		        };
+
+		        if (cfg.prop) {
+		            fxs = cfg.fxs;
+		        } else {
+		            // step only has callback function	
+		            return step;
+		        }
+
+		        if (!fxs) {
+		            fxs = [];
+		            prop = cfg.prop;
+		            easing = cfg.easing;
+
+		            var hidden = isHidden(el);
+
+		            for (p in prop) {
+		                // each property animation bind to object
+		                fx = {};
+
+		                // property name
+		                fx.name = p;
+		                // easing type
+		                fx.easing = easing;
+		                // property value
+		                val = prop[p];
+
+		                if (val == "toggle") val = hidden ? "show" : "hide";
+
+		                switch (val) {
+		                    case "show":
+		                        val = getStyle(el, p);
+		                        cfg._show = true;
+		                        break;
+		                    case "hide":
+		                        val = 0;
+		                        cfg._hide = true;
+		                        break;
+		                }
+
+		                switch (typeof val) {
+		                    case "number":
+		                        fx.symbol = "";
+		                        fx.val = val;
+		                        fx.unit = "px";
+		                        break;
+
+		                        // Property value is an array
+		                        // the 2nd parameter is easing	
+		                    case "object":
+		                        if (val.length > 1) {
+		                            fx.easing = val[1];
+		                        }
+		                        val = val[0];
+		                        // here no break
+
+		                    case "string":
+		                        if (p.toLowerCase().indexOf("color") === -1) {
+		                            val = /(\+=|-=)?(-?\d+)(\D*)/.exec(val);
+		                            fx.symbol = val[1];
+		                            fx.val = val[2];
+		                            fx.unit = val[3] || "px";
+
+		                            // color property					
+		                        } else {
+		                            fx.val = val;
+		                            // unit use "#" when color property
+		                            fx.unit = "#";
+		                        }
+		                }
+
+		                fxs.push(fx);
+		            }
+
+		            cfg.fxs = fxs;
+		        }
+
+		        var data = this.getElData(el);
+		        data._show = cfg._show;
+		        data._hide = cfg._hide;
+
+		        return this.setBc(el, fxs, step);
+		    },
+
+		    /**
+			 * Set animation step begin and change value
+			 * 
+			 * @param  {HTMLElement} el    HTMLElement
+			 * @param  {Array}       fxs   Property animation configuration 
+			 * @return {Array}             Animation step
+			 */
+		    setBc: function (el, fxs, step) {
+		        var hidden = isHidden(el),
+					len = fxs.length,
+					i = 0,
+					undefined,
+					fx, b, c, p, u;
+
+		        for (; i < len; i++) {
+		            fx = fxs[i];
+
+		            p = fx.name;
+		            c = fx.val;
+		            u = fx.unit;
+
+		            if (u !== "#") {
+		                if (hidden) b = 0;
+		                else {
+		                    // element style property
+		                    if (el[p] === undefined) {
+		                        // get current style value
+		                        b = parseFloat(this.getElStyle(el, p));
+		                        if (isNaN(b)) {
+		                            b = 0;
+		                        }
+
+		                    } else {
+		                        b = el[p];
+		                        // unit use "&" when not style property
+		                        u = "&";
+		                    }
+		                }
+
+		                // set change value by symbol
+		                switch (fx.symbol) {
+		                    case "+=":
+		                        c = c * 1;
+		                        break;
+
+		                    case "-=":
+		                        c = c * 1 - c * 2;
+		                        break;
+
+		                    default:
+		                        c = c * 1 - b;
+		                }
+
+		                if (c === 0) {
+		                    continue;
+		                }
+
+		            } else {
+		                b = this.getRgb(this.getElStyle(el, p));
+		                c = this.getRgb(c);
+
+		                // RGB value
+		                c[0] -= b[0];// red
+		                c[1] -= b[1];// green
+		                c[2] -= b[2];// blue
+
+		                if (c.join("") === "000") {
+		                    continue;
+		                }
+		            }
+
+		            step.push({
+		                p: p.replace(/[A-Z]/g, "-$&"),
+		                b: b,
+		                c: c,
+		                u: u,
+		                e: this.easing[fx.easing]
+		            });
+		        }
+
+		        return step;
+		    },
+
+		    /**
+			 * Start global animation executor
+			 */
+		    start: function () {
+		        var
+				    self, start;
+
+		        if (!this.timeId) {
+		            self = this;
+		            start = Date.now();
+
+		            this.timeId = window.setInterval(function () {
+		                var end = Date.now();
+		                self.updateEl(end - start);
+		                start = end;
+		            }, 13);
+		        }
+		    },
+
+		    /**
+			 * Update element style
+			 * 
+			 * @param {Number} stepTime  Each step interval 
+			 */
+		    updateEl: function (stepTime) {
+		        var
+					aEls = this.animEls,
+					len = aEls.length,
+					i = 0,
+					el, que, cur, curStep, data;
+
+		        for (; i < len; i++) {
+		            el = aEls[i];
+
+		            data = this.getElData(el);
+
+		            // element animation queue
+		            que = data.queue;
+		            // current animation steps
+		            cur = data.current;
+
+		            // current step of element animation queue 
+		            if (!(curStep = data.curStep).length && que.length && !data.isDelay) {
+		                curStep = data.curStep = this.getElStep(el, que.shift());
+		                cur.push(curStep);
+		            }
+
+		            if (cur.length) {
+		                if (!data.started) {
+		                    data.started = true;
+
+		                    if (data._show && isHidden(el)) cssShow(el);
+		                    data.cssText = el.style.cssText;
+		                    if (data._show || data._hide) el.style.overflow = "hidden";
+		                }
+
+		                this.step(el, cur, stepTime);
+		            } else {
+		                // element animation complete
+		                aEls.splice(i--, 1);
+		                data.isAnim = false;
+
+		                // global animation complete
+		                if ((len = aEls.length) === 0) {
+		                    window.clearInterval(this.timeId);
+		                    this.timeId = 0;
+		                    return;
+		                }
+		            }
+		        }
+		    },
+
+		    /**
+			 * Update each current animation step's value
+			 * 
+			 * @param {HTMLElement} el     HTMLElement
+			 * @param {Array}       steps  Current animation steps array
+			 */
+		    step: function (el, steps, stepTime) {
+		        var
+					sty = "",
+					len = steps.length,
+					cfgs = [],
+					i = 0,
+					step, cfg, d, t;
+
+		        for (i = 0; i < len; i++) {
+		            step = steps[i];
+		            cfg = step.cfg;
+
+		            if (step.length) {
+
+		                t = cfg.t += stepTime;
+		                d = cfg.d;
+
+		                if (t < d) {
+		                    sty += this.getCssText(el, step, t, d);
+		                    continue;
+		                } else {
+		                    t = d;
+		                    sty += this.getCssText(el, step, t, d);
+		                }
+		            }
+
+		            // aniamtion property already complete 
+		            // or current step just only has callback function					
+		            steps.splice(i--, 1);
+		            len--;
+		            step.length = 0;
+		            cfgs.push(cfg);
+		        }
+
+		        el.style.cssText += sty;
+
+		        for (i = 0, len = cfgs.length; i < len; i++) {
+		            cfg = cfgs[i];
+
+		            //清理工作
+		            var data = this.getElData(el);
+		            if (data.cssText) el.style.cssText = data.cssText;
+		            if (data._hide) cssHide(el);
+		            data.started = data.cssText = data._show = data._hide = undefined;
+
+		            if (cfg.callback) {
+		                // execute callback function
+		                cfg.callback.apply(el, cfg.args);
+		            }
+		        }
+		    },
+
+		    /**
+			 * Get element style cssText
+			 * 
+			 * @param {HTMLElement} el
+			 * @param {Array}       step
+			 * @param {Number}      t
+			 * @param {Number}      d
+			 */
+		    getCssText: function (el, step, t, d) {
+		        var
+					sty = ";",
+					len = step.length,
+					i = 0,
+					f, p, b, c, u, e;
+
+		        for (; i < len; i++) {
+		            f = step[i];
+
+		            p = f.p;
+		            b = f.b;
+		            c = f.c;
+		            u = f.u;
+		            e = f.e;
+
+		            switch (u) {
+		                case "&":
+		                    el[p] = e(t, b, c, d);
+		                    continue;
+
+		                case "#":
+		                    sty += p + ":rgb(" +
+								   Math.ceil(e(t, b[0], c[0], d)) + "," +
+								   Math.ceil(e(t, b[1], c[1], d)) + "," +
+								   Math.ceil(e(t, b[2], c[2], d)) + ");";
+		                    break;
+
+		                default:
+		                    if (p === "opacity") {
+		                        p = e(t, b, c, d);
+		                        sty += "opacity:" + p + ";filter:alpha(opacity=" + p * 100 + ");";
+		                    } else {
+		                        sty += p + ":" + e(t, b, c, d) + u + ";";
+		                    }
+		            }
+		        }
+
+		        return sty;
+		    },
+
+		    /**
+			 * Stop elements animation
+			 * 
+			 * @param {Object}  els         HTMLElement array
+			 * @param {Boolean} clearQueue  Clear element animation queue
+			 * @return {Object} joFx
+			 */
+		    stop: function (els, clearQueue) {
+		        var
+					len = els.length,
+					i = 0,
+					el, data;
+
+		        for (; i < len; i++) {
+		            el = els[i];
+		            data = this.getElData(el);
+
+		            data.curStep.length = 0;
+		            data.current.length = 0;
+
+		            if (clearQueue) {
+		                data.queue.length = 0;
+		            }
+		        }
+
+		        return this;
+		    },
+
+		    /**
+			 * Get property value of element css style
+			 * 
+			 * @param  {HTMLElement} el HTMLElement
+			 * @param  {String}      p	Css property name
+			 * @return {String} 	    Css property value			
+			 */
+		    getElStyle: window.getComputedStyle ?
+				function (el, p) {
+				    return el.style[p] || window.getComputedStyle(el, null)[p];
+				} :
+				function (el, p) {
+				    if (p === "opacity") {
+				        return (el.filters.alpha ? el.filters.alpha.opacity : 100) / 100;
+				    }
+
+				    return el.style[p] || el.currentStyle[p];
+				},
+
+		    /**
+			 * Get color property value to decimal RGB array
+			 * 
+			 * @param  {String} color Css color style value
+			 * @return {Array}     	  Decimal RGB value array
+			 */
+		    getRgb: function (color) {
+		        var
+					rgb, i;
+
+		        if (color.charAt(0) === "#") {
+		            // #000
+		            if (color.length === 4) {
+		                color = color.replace(/\w/g, "$&$&");
+		            }
+
+		            rgb = [];
+
+		            // #000000
+		            for (i = 0; i < 3; i++) {
+		                rgb[i] = parseInt(color.substring(2 * i + 1, 2 * i + 3), 16);
+		            }
+
+		            // rgb(0,0,0)
+		        } else {
+		            if (color === "transparent" || color === "rgba(0, 0, 0, 0)") {
+		                rgb = [255, 255, 255];
+		            } else {
+		                rgb = color.match(/\d+/g);
+		                for (i = 0; i < 3; i++) {
+		                    rgb[i] = parseInt(rgb[i]);
+		                }
+		            }
+		        }
+
+		        return rgb;
+		    }
+
+		};
+
+
+    moFx.prototype = {
+        /**
+         * Custom animation property and fire it
+         * 
+         * @param  {Object} prop  HTMLElement style configuration object
+         * @return {Object} moFx
+         */
+        anim: function (prop) {
+            var
+                // animation configuration object
+                cfg = {
+                    prop: prop,
+
+                    duration: 400,
+
+                    callback: null,
+
+                    easing: "swing",
+
+                    // whether current animation enter queue 
+                    isQueue: true,
+
+                    // arguments of callback funtion
+                    args: []
+                },
+                len = arguments.length,
+                i = 1,
+                param;
+
+            for (; i < len; i++) {
+                param = arguments[i];
+                switch (typeof param) {
+                    case "number":
+                        cfg.duration = param;
+                        break;
+
+                    case "string":
+                        cfg.easing = param;
+                        break;
+
+                    case "function":
+                        cfg.callback = param;
+                        break;
+
+                    case "boolean":
+                        cfg.isQueue = param;
+                        break;
+
+                    case "object":
+                        if (param.length) {
+                            // assert param is array
+                            cfg.args = param;
+                        }
+                }
+            }
+
+            // bind configuration object to element
+            // set element into global animation array
+            // start animation
+            joFx.add(this.elements, cfg).start();
+
+            return this;
+        },
+
+        /**
+         * Stop elements animation
+         * 
+         * @param {Boolean} clearQueue  Clear element animation queue	 
+         * @return {Object} moFx
+         */
+        stop: function (clearQueue) {
+            joFx.stop(this.elements, clearQueue);
+            return this;
+        },
+
+        /**
+         * Set a timer to delay execution aniamtion queue
+         * 
+         * @param {Number} t     Delay times
+         * @return{Object} moFx
+         */
+        delay: function (t) {
+            joFx.add(this.elements, {
+                args: [t, joFx, joFx.animEls],
+                isQueue: true,
+                callback: function (t, joFx, aEls) {
+                    var
+                        data = joFx.getElData(this),
+                        el = this;
+                    data.isDelay = true;
+                    window.setTimeout(function () {
+                        if (!data.isAnim) {
+                            aEls.push(el);
+                            data.isAnim = true;
+                        }
+                        data.isDelay = false;
+                        joFx.start();
+                    }, t);
+                }
+            });
+
+            return this;
+        }
+    };
+
+    /**
+     * Extend public API
+     */
+    mojoFx.extend = function (o) {
+        var p;
+        for (p in o) {
+            this[p] = o[p];
+        }
+
+        return this;
+    };
+
+
+    mojoFx.extend({
+        info: {
+            author: "scott.cgi",
+            version: "1.2.0"
+        },
+
+        /**
+         * Add easing algorithm
+         */
+        addEasing: function () {
+            var
+                easing = joFx.easing,
+                p, o;
+
+            switch (arguments.length) {
+                case 1:
+                    o = arguments[0];
+                    for (p in o) {
+                        easing[p] = o[p];
+                    }
+                    break;
+
+                case 2:
+                    p = arguments[0];
+                    o = arguments[1];
+                    easing[p] = o;
+            }
+
+            return this;
+        }
+    });
+
+    //------------------------- export -------------------------
+
+    var cssExpand = ["Top", "Right", "Bottom", "Left"];
+
+    var fxSpeeds = {
+        slow: 600,
+        fast: 200,
+
+        _def: 400
+    };
+
+    function genFx(type, includeWidth) {
+        var which,
+            attrs = { height: type },
+            i = 0;
+
+        // if we include width, step value is 1 to do all cssExpand values,
+        // if we don't include width, step value is 2 to skip over Left and Right
+        includeWidth = includeWidth ? 1 : 0;
+        for (; i < 4 ; i += 2 - includeWidth) {
+            which = cssExpand[i];
+            attrs["margin" + which] = attrs["padding" + which] = type;
+        }
+
+        if (includeWidth) {
+            attrs.opacity = attrs.width = type;
+        }
+
+        return attrs;
+    }
+
+    var domFn = Q.$.fn;
+
+    domFn.extend({
+        animate: function (props, speed, easing, callback) {
+            mojoFx(this.list).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+            return this;
+        }
+    });
+
+    ["toggle", "show", "hide"].forEach(function (name) {
+        var cssFn = domFn[name];
+
+        domFn[name] = function (speed, easing, callback) {
+            return speed == null || typeof speed === "boolean" ? cssFn.apply(this, arguments) : this.animate(genFx(name, true), speed, easing, callback);
+        };
+    });
+
+    Object.forEach({
+        slideDown: genFx("show"),
+        slideUp: genFx("hide"),
+        slideToggle: genFx("toggle"),
+        fadeIn: { opacity: "show" },
+        fadeOut: { opacity: "hide" },
+        fadeToggle: { opacity: "toggle" }
+    }, function (name, props) {
+        domFn[name] = function (speed, easing, callback) {
+            return this.animate(props, speed, easing, callback);
+        };
+    });
+
+    Q.fx = mojoFx;
 
 })();

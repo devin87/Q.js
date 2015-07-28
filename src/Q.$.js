@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/07/15 11:18
+* update:2015/07/28 16:46
 */
 (function (undefined) {
     "use strict";
@@ -112,6 +112,10 @@
     }
 
     Q.factory(SimpleQuery).extend({
+        extend: function (source, forced) {
+            extend(SimpleQuery.prototype, source, forced);
+        },
+
         //缓存元素列表,内部调用
         _set: function () {
             var self = this;
@@ -330,7 +334,7 @@
     });
 
     //1个参数,返回对第一个匹配元素的处理结果
-    ["getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
+    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (value) {
@@ -406,7 +410,7 @@
         return new SimpleQuery(selector, context);
     }
 
-    $.fn = SimpleQuery;
+    $.fn = SimpleQuery.prototype;
 
     extend($, Q.Ajax);
 
