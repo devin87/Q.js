@@ -11,7 +11,7 @@ module.exports = {
 
         list: [
             {
-                src: ["Q.js", "Q.Queue.js", "Q.core.js", "Q.setTimer.js", "Q.dom.js", "Q.event.js", "Q.ajax.js", "Q.query.js", "Q.$.js", "Q.animate.js"],
+                src: ["Q.js", "Q.Queue.js", "Q.core.js", "Q.setTimer.js", "Q.query.js", "Q.dom.js", "Q.event.js", "Q.ajax.js", "Q.$.js", "Q.animate.js"],
                 dest: "/Q.js"
             },
             {
