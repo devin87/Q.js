@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/07/28 16:46
+* update:2015/08/05 16:23
 */
 (function (undefined) {
     "use strict";
@@ -104,7 +104,7 @@
 
         var self = this;
         self.context = context;
-        self.list = query(selector);
+        self._set(query(selector, context));
 
         self._es = [];
         self._cache = [];
@@ -112,12 +112,29 @@
     }
 
     Q.factory(SimpleQuery).extend({
+        //prototype 扩展
         extend: function (source, forced) {
             extend(SimpleQuery.prototype, source, forced);
         },
 
+        //设置元素列表,内部调用
+        _set: function (list) {
+            var self = this,
+                i = 0,
+                length = list.length,
+                last = length > 3 ? 3 : length;
+
+            self.list = list;
+            self.length = length;
+
+            //支持通过属性方式获取前3个元素 eg: $("a")[0]
+            for (; i < last; i++) self[i] = list[i];
+
+            return self;
+        },
+
         //缓存元素列表,内部调用
-        _set: function () {
+        _save: function () {
             var self = this;
 
             self._cache.push({ list: self.list, _es: self._es });
@@ -134,7 +151,7 @@
             self._level = level;
 
             var data = self._cache[level];
-            self.list = data.list;
+            self._set(data.list);
             self._es = data._es;
 
             if (level > 1) self._cache.pop();
@@ -159,20 +176,23 @@
         //遍历元素
         //注意:fn参数同jQuery,与Array.forEach不同 eg:fn.call(element,i,element)
         each: function (fn) {
-            var list = this.list;
+            var list = this.list, i = 0, len = list.length;
 
-            for (var i = 0, len = list.length; i < len; i++) {
+            for (; i < len; i++) {
                 if (fn.call(list[i], i, list[i]) === false) break;
             }
             return this;
         },
         //迭代元素
-        //注意:fn参数同jQuery,与Array.forEach不同 eg:fn.call(element,i,element)
+        //注意:fn参数同jQuery,与Array.map不同 eg:fn.call(element,i,element)
         map: function (fn) {
             var list = this.list,
+                i = 0,
+                len = list.length,
+
                 ret = [];
 
-            for (var i = 0, len = list.length; i < len; i++) {
+            for (; i < len; i++) {
                 ret.push(fn.call(list[i], i, list[i]));
             }
             return ret;
@@ -180,10 +200,10 @@
         //筛选元素
         filter: function (selector) {
             var self = this,
-                list = this.list,
+                list = self.list,
                 ret = [];
 
-            self._set();
+            self._save();
 
             if (typeof selector == "string") ret = matchesSelector(list, selector);
             else if (isFunc(selector)) {
@@ -192,19 +212,17 @@
                 }
             }
 
-            self.list = ret;
+            return self._set(ret);
+        },
 
-            return self;
+        //查找元素
+        find: function (selector) {
+            return this._save()._set(query(selector, this.list));
         },
 
         //筛选指定索引的元素
         eq: function (i) {
-            var self = this;
-
-            self._set();
-            self.list = [self.get(i)];
-
-            return self;
+            return this._save()._set([this.get(i)]);
         },
         //筛选第一个元素
         first: function () {
@@ -213,25 +231,6 @@
         //筛选最后一个元素
         last: function () {
             return this.eq(-1);
-        },
-
-        //联合新元素
-        concat: function (selector) {
-            var self = this;
-
-            self._set();
-            self.list = self.list.concat(query(selector, self.context));
-
-            return self;
-        },
-        //查找元素
-        find: function (selector) {
-            var self = this;
-
-            self._set();
-            self.list = query(selector, self.list);
-
-            return self;
         },
 
         //添加事件绑定
