@@ -1,7 +1,7 @@
 ﻿/*
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * author:devin87@qq.com  
-* update:2015/07/23 11:09
+* update:2015/08/06 17:24
 */
 (function (undefined) {
     "use strict";
@@ -172,6 +172,38 @@
         }
 
         return [obj];
+    }
+
+    //按条件产生数组 arr(5,2,2) => [2,4,6,8,10]
+    //eg:按1-10项产生斐波那契数列 =>arr(10, function (value, i, list) { return i > 1 ? list[i - 1] + list[i - 2] : 1; })
+    //length:数组长度
+    //value:数组项的初始值
+    //step:第增值或处理函数(当前值,索引,当前产生的数组)
+    function arr(length, value, step) {
+        if (isFunc(value)) {
+            step = value;
+            value = 0;
+        }
+        if (value == undefined) value = 0;
+        if (step == undefined) step = 1;
+
+        var list = [], i = 0;
+
+        if (isFunc(step)) {
+            while (i < length) {
+                value = step(value, i, list);
+                list.push(value);
+                i++;
+            }
+        } else {
+            while (i < length) {
+                list.push(value);
+                value += step;
+                i++;
+            }
+        }
+
+        return list;
     }
 
     //prototype 别名 eg:alias(Array,"forEach","each");
@@ -1021,6 +1053,8 @@
 
         toArray: toArray,
         makeArray: makeArray,
+
+        arr: arr,
 
         alias: alias,
         extend: extend,
