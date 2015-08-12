@@ -1,7 +1,7 @@
 ﻿/*
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * author:devin87@qq.com  
-* update:2015/08/06 17:24
+* update:2015/08/12 18:04
 */
 (function (undefined) {
     "use strict";
@@ -315,7 +315,8 @@
         if (fn == undefined) return;
 
         return setTimeout(function () {
-            fn.apply(bind, args);
+            //ie6-7,apply第二个参数不能为空,否则报错
+            fn.apply(bind, args || []);
         }, def(time, 20));
     }
 
