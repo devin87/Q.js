@@ -4711,7 +4711,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/08/05 16:23
+* update:2015/08/19 16:41
 */
 (function (undefined) {
     "use strict";
@@ -4806,6 +4806,7 @@
 
     function SimpleQuery(selector, context) {
         if (isFunc(selector)) return ready(selector);
+        if (selector instanceof SimpleQuery) return selector;
 
         var self = this;
         self.context = context;
