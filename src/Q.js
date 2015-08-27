@@ -1,5 +1,6 @@
 ﻿/*
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
+* https://github.com/devin87/Q.js
 * author:devin87@qq.com  
 * update:2015/08/12 18:04
 */
