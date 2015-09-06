@@ -205,7 +205,7 @@
             //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
         }
 
-        if (cssText) ele.style.cssText = cssText;
+        if (cssText != undefined) ele.style.cssText = cssText;
 
         return value;
     }
