@@ -5130,7 +5130,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/07/27 16:52
+* update:2015/09/07 09:26
 */
 (function (undefined) {
     "use strict";
@@ -5138,6 +5138,7 @@
     var isNum = Q.isNum,
         isHidden = Q.isHidden,
         getStyle = Q.getStyle,
+        makeArray = Q.makeArray,
 
         cssShow = Q.show,
         cssHide = Q.hide;
@@ -5154,7 +5155,7 @@
 		 * @param {Array | NodeList | HTMLElement} arg
 		 */
 		moFx = function (arg) {
-		    this.elements = arg.length ? arg : [arg];
+		    this.elements = makeArray(arg);
 		},
 
 		joFx = {
@@ -5881,7 +5882,7 @@
 
     domFn.extend({
         animate: function (props, speed, easing, callback) {
-            mojoFx(this.list).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+            if (this.list.length > 0) mojoFx(this.list).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
             return this;
         }
     });
