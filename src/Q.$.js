@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/08/19 16:41
+* update:2015/09/08 15:48
 */
 (function (undefined) {
     "use strict";
@@ -21,6 +21,7 @@
         makeArray = Q.makeArray,
         createEle = Q.createEle,
         parseHTML = Q.parseHTML,
+        removeEle = Q.removeEle,
 
         ready = Q.ready,
 
@@ -31,7 +32,7 @@
 
     //是否是html标签
     function isTag(str) {
-        return str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
+        return typeof str == "string" && str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
     }
 
     //插入元素对象
@@ -83,20 +84,18 @@
         var isNode = obj.nodeType;
 
         try {
-            if (!isNode && SUPPORT_INSERT_HTML) ele.insertAdjacentHTML(where, obj);
-            else if (isNode && SUPPORT_INSERT_ELEMENT) ele.insertAdjacentElement(where, obj);
-
-            return;
+            if (!isNode && SUPPORT_INSERT_HTML) return ele.insertAdjacentHTML(where, obj);
+            if (isNode && SUPPORT_INSERT_ELEMENT) return ele.insertAdjacentElement(where, obj);
         } catch (e) { }
 
         insertAdjacentElement(ele, where, isNode ? obj : build_fragment(parseHTML(obj, true)));
     }
 
     //解析并查询
-    function query(selector) {
+    function query(selector, context) {
         if (typeof selector != "string") return makeArray(selector);
 
-        return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector);
+        return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector, context);
     }
 
     function SimpleQuery(selector, context) {
@@ -218,7 +217,7 @@
 
         //查找元素
         find: function (selector) {
-            return this._save()._set(query(selector, this.list));
+            return new SimpleQuery(selector, this.list);
         },
 
         //筛选指定索引的元素
@@ -265,6 +264,51 @@
             }
 
             return this.mouseenter(selector, over).mouseleave(selector, out || over);
+        },
+
+        //对每一个元素执行包裹
+        wrap: function (html) {
+            return this.each(function (i, element) {
+                var tag = isFunc(html) ? html.call(element, i, element) : html,
+                    el = isTag(tag) ? parseHTML(tag) : tag.cloneNode(true);
+
+                element.parentNode.insertBefore(el, element);
+                el.appendChild(element);
+            });
+        },
+        //移出元素的父元素
+        unwrap: function () {
+            this.map(function (i, element) {
+                var pNode = element.parentNode;
+
+                pNode.parentNode.insertBefore(element, pNode);
+                return pNode;
+            }).forEach(removeEle);
+
+            return this;
+        },
+        //将每一个匹配的元素的子内容(包括文本节点)用一个HTML结构包裹起来
+        wrapInner: function (html) {
+            return this.each(function (i, element) {
+                var tag = isFunc(html) ? html.call(element, i, element) : html,
+                    el = isTag(tag) ? parseHTML(tag) : tag.cloneNode(true),
+                    childNodes = element.childNodes;
+
+                makeArray(childNodes).forEach(function (node) {
+                    el.appendChild(node);
+                });
+
+                element.appendChild(el);
+            });
+        },
+        //将所有匹配的元素用单个元素包裹起来
+        wrapAll: function (html) {
+            var el = isTag(html) ? parseHTML(html) : html.cloneNode(true);
+
+            return this.each(function (i, element) {
+                if (i == 0) element.parentNode.insertBefore(el, element);
+                el.appendChild(element);
+            });
         }
     });
 
@@ -306,7 +350,7 @@
     }, function (name, where) {
         sp[name] = function (ele) {
             return this.each(function () {
-                insertEle(ele, where, this);
+                insertEle(ele[0] || ele, where, this);
             });
         };
     });
@@ -355,12 +399,26 @@
         };
     });
 
+    //获取元素滚动距离
+    ["scrollTop", "scrollLeft"].forEach(function (name) {
+        sp[name] = function () {
+            var el = this.get(0);
+            if (el == el.window || el.body) {
+                if (!el.body) el = el.document;
+
+                return Math.max(el.documentElement[name], el.body[name]);
+            }
+
+            return el[name];
+        };
+    });
+
     //3个参数,对元素遍历赋值,若第3个参数不存在,则返回对第一个匹配元素的处理结果
     ["attr", "prop", "css"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (key, value) {
-            if (value === undefined) return this._getVal(fn, 0, key);
+            if (value === undefined && typeof key == "string") return this._getVal(fn, 0, key);
 
             return this.each(function () {
                 fn(this, key, value);

@@ -2,7 +2,7 @@
 /*
 * Q.dom.js DOM操作
 * author:devin87@qq.com
-* update:2015/07/28 11:46
+* update:2015/09/08 16:05
 */
 (function (undefined) {
     "use strict";
@@ -12,7 +12,7 @@
         html = Q.html,
         head = Q.head,
 
-        isObject = Q.isObject,
+        isArrayLike = Q.isArrayLike,
         extend = Q.extend,
         makeArray = Q.makeArray,
 
@@ -164,7 +164,7 @@
 
             //转换百分比，不包括字体
             if (/%$/.test(value) && key != "fontSize") {
-                return _getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
+                return getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
             }
 
             //计算边框宽度
@@ -186,6 +186,9 @@
     //type:  Width|Height
     //level: 0,1,2 => width,width+padding,width+padding+border;height类似
     function getSizeOf(ele, type, level) {
+        if (ele == ele.window) return view["get" + type]();
+        if (ele.body) return ele.documentElement["offset" + type];
+
         var cssText;
         if (isHidden(ele)) {
             cssText = ele.style.cssText;
@@ -203,6 +206,14 @@
 
             //is_quirk_mode && browser_ie < 10 => value=ele["offset" + type];
             //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
+        }
+
+        if (!value) {
+            value = getStyleFloat(ele, type == "Width" ? "width" : "height");
+            if (value) {
+                if (level) value += type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
+                if (level == 2) value += type == "Width" ? getStyleFloat(ele, "borderLeftWidth") + getStyleFloat(ele, "borderRightWidth") : getStyleFloat(ele, "borderTopWidth") + getStyleFloat(ele, "borderBottomWidth");
+            }
         }
 
         if (cssText != undefined) ele.style.cssText = cssText;
@@ -415,16 +426,18 @@
     }
 
     //设置元素居中显示(absolute定位)
-    function setCenter(ele) {
+    function setCenter(ele, onlyPos) {
         setCssIfNot(ele, "position", "absolute");
 
         var size = view.getSize(),
             offset = getOffset(ele.offsetParent),
 
             left = Math.round((size.width - ele.offsetWidth) / 2) - offset.left + view.getScrollLeft(),
-            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop();
+            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop(),
 
-        css(ele, { left: Math.max(left, 0), top: Math.max(top, 0) });
+            pos = { left: Math.max(left, 0), top: Math.max(top, 0) };
+
+        return onlyPos ? pos : css(ele, pos);
     }
 
     var NODE_PREV = "previousSibling",
@@ -555,7 +568,7 @@
 
     var hasClass, addClass, removeClass, replaceClass, toggleClass;
 
-    if (isObject(html.classList)) {
+    if (isArrayLike(html.classList)) {
         hasClass = function (ele, clsName) {
             return ele.classList.contains(clsName);
         };
@@ -603,7 +616,7 @@
                 className = classList.join(" ");
             }
 
-            ele.className = className;
+            ele.className = className.trim();
         };
 
         hasClass = function (ele, clsName) {

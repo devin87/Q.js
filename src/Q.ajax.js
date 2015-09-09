@@ -2,7 +2,7 @@
 /*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2015/07/15 11:18
+* update:2015/09/08 09:35
 */
 (function (undefined) {
     "use strict";
@@ -17,7 +17,7 @@
         fire = Q.fire,
 
         to_param_str = Q.param,
-        combine_url = Q.join,
+        join_url = Q.join,
 
         browser_ie = Q.ie;
 
@@ -146,10 +146,10 @@
 
             timer;
 
-        url = combine_url(url, jsonp_param_key + "=" + jsonp_param_value);
+        url = join_url(url, jsonp_param_key + "=" + jsonp_param_value);
         window[jsonp_param_value] = jsonpCallback;
 
-        var dispose = function () {
+        var destroy = function () {
             timer && clearTimeout(timer);
 
             script.onload = script.onerror = script.onreadystatechange = null;
@@ -158,14 +158,14 @@
         };
 
         var process_success = function (data) {
-            dispose();
+            destroy();
 
             ops.response = data;
             fire_ajax_complete(undefined, ops, AJAX_STATE_SUCCESS);
         };
 
         var process_error = function (state) {
-            dispose();
+            destroy();
 
             fire_ajax_complete(undefined, ops, state);
         };
@@ -237,9 +237,9 @@
 
         //禁用缓存
         if (!ops.cache) {
-            url = combine_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
+            url = join_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
         } else {
-            if (type != HTTP_METHOD_POST) url = combine_url(url, str_params);
+            if (type != HTTP_METHOD_POST) url = join_url(url, str_params);
         }
 
         //jsonp单独处理

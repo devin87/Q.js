@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/07/22 14:49
+* update:2015/09/08 15:49
 */
 (function (undefined) {
     "use strict";
@@ -73,7 +73,7 @@
         self.originalEvent = e;
 
         self.type = type;
-        self.target = target;
+        self.currentTarget = self.target = target;
         self.relatedTarget = relatedTarget;
 
         self.rightClick = rightClick;
@@ -165,7 +165,7 @@
 
             if (!related || (related !== target && !containsNode(target, related))) {
                 e.type = e.type == "mouseover" ? "mouseenter" : "mouseleave";
-                fn.call(target, e);
+                return fn.call(target, e);
             }
         }
     };
@@ -206,10 +206,16 @@
 
         var handle = function (event) {
             var e = fix_event(event),
-                target,
-                flag = !selector || (target = get_target(ele, e.target, selector));
+                target;
 
-            if (flag) fn.call(target || ele, e);
+            if (selector) {
+                target = get_target(ele, e.target, selector);
+                if (!target) return;
+
+                e.currentTarget = target;
+            }
+
+            if (fn.call(target || ele, e) === false) e.stop();
         };
 
         addEvent(ele, type, handle);

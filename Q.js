@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2015/08/12 18:04
+* update:2015/09/09 10:50
 */
 (function (undefined) {
     "use strict";
@@ -227,7 +227,7 @@
     //扩展对象
     //forced:是否强制扩展
     function extend(destination, source, forced) {
-        if (!destination || !source) return;
+        if (!destination || !source) return destination;
 
         for (var key in source) {
             if (key == undefined || !has.call(source, key)) continue;
@@ -303,6 +303,19 @@
     function sortString(list, prop, desc) {
         if (desc) list.sort(function (a, b) { return -a[prop].localeCompare(b[prop]); });
         else list.sort(function (a, b) { return a[prop].localeCompare(b[prop]); });
+    }
+
+    //返回一个绑定到指定作用域的新函数
+    function proxy(fn, bind) {
+        if (isObject(fn)) {
+            var name = bind;
+            bind = fn;
+            fn = bind[name];
+        }
+
+        return function () {
+            fn.apply(bind, arguments);
+        }
     }
 
     //触发指定函数,如果函数不存在,则不触发 eg:fire(fn,this,arg1,arg2)
@@ -1067,6 +1080,7 @@
         sortNumber: sortNumber,
         sortString: sortString,
 
+        proxy: proxy,
         fire: fire,
         delay: delay,
         async: async,
@@ -1446,7 +1460,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/07/15 11:16
+* update:2015/09/08 15:49
 */
 (function (undefined) {
     "use strict";
@@ -1642,7 +1656,7 @@
 
             fire(ops.before, element, url, element);
 
-            head.insertBefore(element);
+            head.insertBefore(element, head.lastChild);
         });
 
         list = null;
@@ -3249,7 +3263,7 @@
 ﻿/*
 * Q.dom.js DOM操作
 * author:devin87@qq.com
-* update:2015/07/28 11:46
+* update:2015/09/08 16:05
 */
 (function (undefined) {
     "use strict";
@@ -3259,7 +3273,7 @@
         html = Q.html,
         head = Q.head,
 
-        isObject = Q.isObject,
+        isArrayLike = Q.isArrayLike,
         extend = Q.extend,
         makeArray = Q.makeArray,
 
@@ -3411,7 +3425,7 @@
 
             //转换百分比，不包括字体
             if (/%$/.test(value) && key != "fontSize") {
-                return _getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
+                return getWidth(ele.parentNode) * parseFloat(value) / 100 + "px";
             }
 
             //计算边框宽度
@@ -3433,6 +3447,9 @@
     //type:  Width|Height
     //level: 0,1,2 => width,width+padding,width+padding+border;height类似
     function getSizeOf(ele, type, level) {
+        if (ele == ele.window) return view["get" + type]();
+        if (ele.body) return ele.documentElement["offset" + type];
+
         var cssText;
         if (isHidden(ele)) {
             cssText = ele.style.cssText;
@@ -3450,6 +3467,14 @@
 
             //is_quirk_mode && browser_ie < 10 => value=ele["offset" + type];
             //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
+        }
+
+        if (!value) {
+            value = getStyleFloat(ele, type == "Width" ? "width" : "height");
+            if (value) {
+                if (level) value += type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
+                if (level == 2) value += type == "Width" ? getStyleFloat(ele, "borderLeftWidth") + getStyleFloat(ele, "borderRightWidth") : getStyleFloat(ele, "borderTopWidth") + getStyleFloat(ele, "borderBottomWidth");
+            }
         }
 
         if (cssText != undefined) ele.style.cssText = cssText;
@@ -3662,16 +3687,18 @@
     }
 
     //设置元素居中显示(absolute定位)
-    function setCenter(ele) {
+    function setCenter(ele, onlyPos) {
         setCssIfNot(ele, "position", "absolute");
 
         var size = view.getSize(),
             offset = getOffset(ele.offsetParent),
 
             left = Math.round((size.width - ele.offsetWidth) / 2) - offset.left + view.getScrollLeft(),
-            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop();
+            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop(),
 
-        css(ele, { left: Math.max(left, 0), top: Math.max(top, 0) });
+            pos = { left: Math.max(left, 0), top: Math.max(top, 0) };
+
+        return onlyPos ? pos : css(ele, pos);
     }
 
     var NODE_PREV = "previousSibling",
@@ -3802,7 +3829,7 @@
 
     var hasClass, addClass, removeClass, replaceClass, toggleClass;
 
-    if (isObject(html.classList)) {
+    if (isArrayLike(html.classList)) {
         hasClass = function (ele, clsName) {
             return ele.classList.contains(clsName);
         };
@@ -3850,7 +3877,7 @@
                 className = classList.join(" ");
             }
 
-            ele.className = className;
+            ele.className = className.trim();
         };
 
         hasClass = function (ele, clsName) {
@@ -3956,7 +3983,7 @@
 ﻿/*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/07/22 14:49
+* update:2015/09/08 15:49
 */
 (function (undefined) {
     "use strict";
@@ -4025,7 +4052,7 @@
         self.originalEvent = e;
 
         self.type = type;
-        self.target = target;
+        self.currentTarget = self.target = target;
         self.relatedTarget = relatedTarget;
 
         self.rightClick = rightClick;
@@ -4117,7 +4144,7 @@
 
             if (!related || (related !== target && !containsNode(target, related))) {
                 e.type = e.type == "mouseover" ? "mouseenter" : "mouseleave";
-                fn.call(target, e);
+                return fn.call(target, e);
             }
         }
     };
@@ -4158,10 +4185,16 @@
 
         var handle = function (event) {
             var e = fix_event(event),
-                target,
-                flag = !selector || (target = get_target(ele, e.target, selector));
+                target;
 
-            if (flag) fn.call(target || ele, e);
+            if (selector) {
+                target = get_target(ele, e.target, selector);
+                if (!target) return;
+
+                e.currentTarget = target;
+            }
+
+            if (fn.call(target || ele, e) === false) e.stop();
         };
 
         addEvent(ele, type, handle);
@@ -4282,7 +4315,7 @@
 ﻿/*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2015/07/15 11:18
+* update:2015/09/08 09:35
 */
 (function (undefined) {
     "use strict";
@@ -4297,7 +4330,7 @@
         fire = Q.fire,
 
         to_param_str = Q.param,
-        combine_url = Q.join,
+        join_url = Q.join,
 
         browser_ie = Q.ie;
 
@@ -4426,10 +4459,10 @@
 
             timer;
 
-        url = combine_url(url, jsonp_param_key + "=" + jsonp_param_value);
+        url = join_url(url, jsonp_param_key + "=" + jsonp_param_value);
         window[jsonp_param_value] = jsonpCallback;
 
-        var dispose = function () {
+        var destroy = function () {
             timer && clearTimeout(timer);
 
             script.onload = script.onerror = script.onreadystatechange = null;
@@ -4438,14 +4471,14 @@
         };
 
         var process_success = function (data) {
-            dispose();
+            destroy();
 
             ops.response = data;
             fire_ajax_complete(undefined, ops, AJAX_STATE_SUCCESS);
         };
 
         var process_error = function (state) {
-            dispose();
+            destroy();
 
             fire_ajax_complete(undefined, ops, state);
         };
@@ -4517,9 +4550,9 @@
 
         //禁用缓存
         if (!ops.cache) {
-            url = combine_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
+            url = join_url(url, type != HTTP_METHOD_POST ? str_params : "", "_=" + (ajax_guid++));
         } else {
-            if (type != HTTP_METHOD_POST) url = combine_url(url, str_params);
+            if (type != HTTP_METHOD_POST) url = join_url(url, str_params);
         }
 
         //jsonp单独处理
@@ -4712,7 +4745,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/08/19 16:41
+* update:2015/09/08 15:48
 */
 (function (undefined) {
     "use strict";
@@ -4727,6 +4760,7 @@
         makeArray = Q.makeArray,
         createEle = Q.createEle,
         parseHTML = Q.parseHTML,
+        removeEle = Q.removeEle,
 
         ready = Q.ready,
 
@@ -4737,7 +4771,7 @@
 
     //是否是html标签
     function isTag(str) {
-        return str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
+        return typeof str == "string" && str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
     }
 
     //插入元素对象
@@ -4789,20 +4823,18 @@
         var isNode = obj.nodeType;
 
         try {
-            if (!isNode && SUPPORT_INSERT_HTML) ele.insertAdjacentHTML(where, obj);
-            else if (isNode && SUPPORT_INSERT_ELEMENT) ele.insertAdjacentElement(where, obj);
-
-            return;
+            if (!isNode && SUPPORT_INSERT_HTML) return ele.insertAdjacentHTML(where, obj);
+            if (isNode && SUPPORT_INSERT_ELEMENT) return ele.insertAdjacentElement(where, obj);
         } catch (e) { }
 
         insertAdjacentElement(ele, where, isNode ? obj : build_fragment(parseHTML(obj, true)));
     }
 
     //解析并查询
-    function query(selector) {
+    function query(selector, context) {
         if (typeof selector != "string") return makeArray(selector);
 
-        return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector);
+        return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector, context);
     }
 
     function SimpleQuery(selector, context) {
@@ -4924,7 +4956,7 @@
 
         //查找元素
         find: function (selector) {
-            return this._save()._set(query(selector, this.list));
+            return new SimpleQuery(selector, this.list);
         },
 
         //筛选指定索引的元素
@@ -4971,6 +5003,51 @@
             }
 
             return this.mouseenter(selector, over).mouseleave(selector, out || over);
+        },
+
+        //对每一个元素执行包裹
+        wrap: function (html) {
+            return this.each(function (i, element) {
+                var tag = isFunc(html) ? html.call(element, i, element) : html,
+                    el = isTag(tag) ? parseHTML(tag) : tag.cloneNode(true);
+
+                element.parentNode.insertBefore(el, element);
+                el.appendChild(element);
+            });
+        },
+        //移出元素的父元素
+        unwrap: function () {
+            this.map(function (i, element) {
+                var pNode = element.parentNode;
+
+                pNode.parentNode.insertBefore(element, pNode);
+                return pNode;
+            }).forEach(removeEle);
+
+            return this;
+        },
+        //将每一个匹配的元素的子内容(包括文本节点)用一个HTML结构包裹起来
+        wrapInner: function (html) {
+            return this.each(function (i, element) {
+                var tag = isFunc(html) ? html.call(element, i, element) : html,
+                    el = isTag(tag) ? parseHTML(tag) : tag.cloneNode(true),
+                    childNodes = element.childNodes;
+
+                makeArray(childNodes).forEach(function (node) {
+                    el.appendChild(node);
+                });
+
+                element.appendChild(el);
+            });
+        },
+        //将所有匹配的元素用单个元素包裹起来
+        wrapAll: function (html) {
+            var el = isTag(html) ? parseHTML(html) : html.cloneNode(true);
+
+            return this.each(function (i, element) {
+                if (i == 0) element.parentNode.insertBefore(el, element);
+                el.appendChild(element);
+            });
         }
     });
 
@@ -5012,7 +5089,7 @@
     }, function (name, where) {
         sp[name] = function (ele) {
             return this.each(function () {
-                insertEle(ele, where, this);
+                insertEle(ele[0] || ele, where, this);
             });
         };
     });
@@ -5061,12 +5138,26 @@
         };
     });
 
+    //获取元素滚动距离
+    ["scrollTop", "scrollLeft"].forEach(function (name) {
+        sp[name] = function () {
+            var el = this.get(0);
+            if (el == el.window || el.body) {
+                if (!el.body) el = el.document;
+
+                return Math.max(el.documentElement[name], el.body[name]);
+            }
+
+            return el[name];
+        };
+    });
+
     //3个参数,对元素遍历赋值,若第3个参数不存在,则返回对第一个匹配元素的处理结果
     ["attr", "prop", "css"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (key, value) {
-            if (value === undefined) return this._getVal(fn, 0, key);
+            if (value === undefined && typeof key == "string") return this._getVal(fn, 0, key);
 
             return this.each(function () {
                 fn(this, key, value);
@@ -5130,7 +5221,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/07 09:26
+* update:2015/09/08 15:48
 */
 (function (undefined) {
     "use strict";
@@ -5482,8 +5573,11 @@
 		                    data.started = true;
 
 		                    if (data._show && isHidden(el)) cssShow(el);
-		                    data.cssText = el.style.cssText;
-		                    if (data._show || data._hide) el.style.overflow = "hidden";
+
+		                    if (data._show || data._hide) {
+		                        data.cssText = el.style.cssText;
+		                        el.style.overflow = "hidden";
+		                    }
 		                }
 
 		                this.step(el, cur, stepTime);
@@ -5878,11 +5972,15 @@
         return attrs;
     }
 
+    function animate(el, props, speed, easing, callback) {
+        mojoFx(el).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+    }
+
     var domFn = Q.$.fn;
 
     domFn.extend({
         animate: function (props, speed, easing, callback) {
-            if (this.list.length > 0) mojoFx(this.list).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+            if (this.list.length > 0) animate(this.list, props, speed, easing, callback);
             return this;
         }
     });
@@ -5891,7 +5989,12 @@
         var cssFn = domFn[name];
 
         domFn[name] = function (speed, easing, callback) {
-            return speed == null || typeof speed === "boolean" ? cssFn.apply(this, arguments) : this.animate(genFx(name, true), speed, easing, callback);
+            if (speed == null || typeof speed === "boolean") {
+                joFx.stop(this.list, true);
+                return cssFn.apply(this);
+            }
+
+            return this.animate(genFx(name, true), speed, easing, callback);
         };
     });
 
@@ -5908,6 +6011,21 @@
         };
     });
 
+    var setCenter = Q.setCenter;
+
+    //元素居中动画
+    domFn.center = function (speed, easing, callback) {
+        var self = this,
+            isNoAnim = speed == null || typeof speed === "boolean";
+
+        if (isNoAnim) joFx.stop(self.list, true);
+
+        return this.each(function (i, el) {
+            isNoAnim ? setCenter(el) : animate(el, setCenter(el, true), speed, easing, callback);
+        });
+    };
+
+    Q.Fx = joFx;
     Q.fx = mojoFx;
 
 })();

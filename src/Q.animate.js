@@ -4,7 +4,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/07 09:26
+* update:2015/09/08 15:48
 */
 (function (undefined) {
     "use strict";
@@ -356,8 +356,11 @@
 		                    data.started = true;
 
 		                    if (data._show && isHidden(el)) cssShow(el);
-		                    data.cssText = el.style.cssText;
-		                    if (data._show || data._hide) el.style.overflow = "hidden";
+
+		                    if (data._show || data._hide) {
+		                        data.cssText = el.style.cssText;
+		                        el.style.overflow = "hidden";
+		                    }
 		                }
 
 		                this.step(el, cur, stepTime);
@@ -752,11 +755,15 @@
         return attrs;
     }
 
+    function animate(el, props, speed, easing, callback) {
+        mojoFx(el).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+    }
+
     var domFn = Q.$.fn;
 
     domFn.extend({
         animate: function (props, speed, easing, callback) {
-            if (this.list.length > 0) mojoFx(this.list).anim(props, isNum(speed, 0) ? speed : speed && fxSpeeds[speed] || fxSpeeds["_def"], easing, callback);
+            if (this.list.length > 0) animate(this.list, props, speed, easing, callback);
             return this;
         }
     });
@@ -765,7 +772,12 @@
         var cssFn = domFn[name];
 
         domFn[name] = function (speed, easing, callback) {
-            return speed == null || typeof speed === "boolean" ? cssFn.apply(this, arguments) : this.animate(genFx(name, true), speed, easing, callback);
+            if (speed == null || typeof speed === "boolean") {
+                joFx.stop(this.list, true);
+                return cssFn.apply(this);
+            }
+
+            return this.animate(genFx(name, true), speed, easing, callback);
         };
     });
 
@@ -782,6 +794,21 @@
         };
     });
 
+    var setCenter = Q.setCenter;
+
+    //元素居中动画
+    domFn.center = function (speed, easing, callback) {
+        var self = this,
+            isNoAnim = speed == null || typeof speed === "boolean";
+
+        if (isNoAnim) joFx.stop(self.list, true);
+
+        return this.each(function (i, el) {
+            isNoAnim ? setCenter(el) : animate(el, setCenter(el, true), speed, easing, callback);
+        });
+    };
+
+    Q.Fx = joFx;
     Q.fx = mojoFx;
 
 })();

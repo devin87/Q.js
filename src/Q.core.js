@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/07/15 11:16
+* update:2015/09/08 15:49
 */
 (function (undefined) {
     "use strict";
@@ -199,7 +199,7 @@
 
             fire(ops.before, element, url, element);
 
-            head.insertBefore(element);
+            head.insertBefore(element, head.lastChild);
         });
 
         list = null;
