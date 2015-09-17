@@ -29,6 +29,12 @@ window.relativeSelectors = [
 
 'div, div, div',
 
+'.box .w-button',
+
+'.box .pg .pg-bar',
+
+'body #view',
+
 '#view',
 
 'div#view',

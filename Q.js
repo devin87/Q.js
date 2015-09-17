@@ -2195,7 +2195,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/06/11 10:35
+* update:2015/09/17 09:57
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -2210,7 +2210,9 @@
     var RE_RULE = /[ +>~]/g,
         RE_N_RULE = /[^ +>~]+/g,
 		//RE_TRIM_LR = /^ +| +$/g,
-		RE_TRIM = / *([^a-zA-Z*]) */g,
+		//RE_TRIM = / *([^a-zA-Z*]) */g, //bug eg:.t .a=>.t.a
+        RE_TRIM = /\s*([+>~])\s*/g,
+
 		RE_PSEU_PARAM = /\([^()]+\)/g,
 		RE_ATTR_PARAM = /[^\[]+(?=\])/g,
 		RE_ATTR = /[!\^$*|~]?=/,
@@ -2634,7 +2636,7 @@
 	* @return {Booelan}     Matched or not
 	*/
     function checkNthChild(el, i, len, param) {
-        var data, pel, map, index, checkType,
+        var data, node, pel, map, index, checkType,
             first = param[4],
             next = param[5],
             guid = param[0];
@@ -4745,7 +4747,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/09/08 15:48
+* update:2015/09/10 17:55
 */
 (function (undefined) {
     "use strict";
@@ -4771,7 +4773,7 @@
 
     //是否是html标签
     function isTag(str) {
-        return typeof str == "string" && str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
+        return typeof str == "string" && str.charAt(0) == "<" && str.slice(-1) == ">";
     }
 
     //插入元素对象
@@ -5117,11 +5119,20 @@
     });
 
     //1个参数,返回对第一个匹配元素的处理结果
-    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
+    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (value) {
             return this._getVal(fn);
+        };
+    });
+
+    //2个参数,返回对第一个匹配元素的处理结果
+    ["hasClass"].forEach(function (name) {
+        var fn = get_dom_fn(name);
+
+        sp[name] = function (value) {
+            return this._getVal(fn, 0, value);
         };
     });
 

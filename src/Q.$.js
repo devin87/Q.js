@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/09/08 15:48
+* update:2015/09/10 17:55
 */
 (function (undefined) {
     "use strict";
@@ -32,7 +32,7 @@
 
     //是否是html标签
     function isTag(str) {
-        return typeof str == "string" && str.substr(0, 1) == "<" && str.substr(str.length - 1, 1) == ">";
+        return typeof str == "string" && str.charAt(0) == "<" && str.slice(-1) == ">";
     }
 
     //插入元素对象
@@ -378,11 +378,20 @@
     });
 
     //1个参数,返回对第一个匹配元素的处理结果
-    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position", "hasClass"].forEach(function (name) {
+    ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
         sp[name] = function (value) {
             return this._getVal(fn);
+        };
+    });
+
+    //2个参数,返回对第一个匹配元素的处理结果
+    ["hasClass"].forEach(function (name) {
+        var fn = get_dom_fn(name);
+
+        sp[name] = function (value) {
+            return this._getVal(fn, 0, value);
         };
     });
 
