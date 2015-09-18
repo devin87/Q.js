@@ -73,10 +73,13 @@ window.attrSelectors = [
 'div[class]',
 
 'div[class=example]',
+'div[class="example"]',
 
 'div[class^=exa]',
+'div[class^="exa"]',
 
 'div[class$=mple]',
+'div[class$="mple"]',
 
 'div[class*=e]',
 
@@ -248,11 +251,19 @@ window.customSelectors = [
 '#view.go',
 'a#view',
 
+'.box .w-button',
+
+'.box .pg .pg-bar',
+
+'body #view',
+
 '.inline',
 '*.fn.url',
 '.inline-block.w-button',
 '.inline-blockw-button',
-'.example.example'
+'.example.example',
+
+'div[x="1-1"]'
 ];
 
 window.allSelectors = relativeSelectors.concat(clsSelectors).concat(attrSelectors).concat(pseuSelectors);

@@ -4,7 +4,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/08 15:48
+* update:2015/09/17 12:07
 */
 (function (undefined) {
     "use strict";
@@ -195,9 +195,9 @@
 
 		                    case "string":
 		                        if (p.toLowerCase().indexOf("color") === -1) {
-		                            val = /(\+=|-=)?(-?\d+)(\D*)/.exec(val);
+		                            val = /(\+=|-=)?(-?\d+)(\D*)/.exec(val) || ["", 0];
 		                            fx.symbol = val[1];
-		                            fx.val = val[2];
+		                            fx.val = val[2] || 0;
 		                            fx.unit = val[3] || "px";
 
 		                            // color property					
@@ -521,17 +521,18 @@
 			 * @param  {String}      p	Css property name
 			 * @return {String} 	    Css property value			
 			 */
-		    getElStyle: window.getComputedStyle ?
-				function (el, p) {
-				    return el.style[p] || window.getComputedStyle(el, null)[p];
-				} :
-				function (el, p) {
-				    if (p === "opacity") {
-				        return (el.filters.alpha ? el.filters.alpha.opacity : 100) / 100;
-				    }
+		    //getElStyle: window.getComputedStyle ?
+		    //	function (el, p) {
+		    //	    return el.style[p] || window.getComputedStyle(el, null)[p];
+		    //	} :
+		    //	function (el, p) {
+		    //	    if (p === "opacity") {
+		    //	        return (el.filters.alpha ? el.filters.alpha.opacity : 100) / 100;
+		    //	    }
 
-				    return el.style[p] || el.currentStyle[p];
-				},
+		    //	    return el.style[p] || el.currentStyle[p];
+		    //	},
+		    getElStyle: getStyle,
 
 		    /**
 			 * Get color property value to decimal RGB array
