@@ -1460,7 +1460,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/09/08 15:49
+* update:2015/09/22 14:04
 */
 (function (undefined) {
     "use strict";
@@ -1537,7 +1537,7 @@
 
     //解析url参数 eg:url?id=1
     function parse_url_params(search) {
-        if (!search) search = location.search;
+        if (!search) return {};
 
         if (search.charAt(0) == "?") search = search.slice(1);
         if (!search) return {};
@@ -1560,7 +1560,9 @@
 
     //编码或解码查询字符串
     function process_url_param(obj) {
-        return isObject(obj) ? to_param_str(obj) : parse_url_params(obj);
+        if (obj == undefined) return;
+
+        return typeof obj == "string" ? parse_url_params(obj) : to_param_str(obj);
     }
 
     //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
@@ -2113,7 +2115,7 @@
     else async(init, 0);
 
     //暴露接口
-    window.request = parse_url_params();
+    window.request = parse_url_params(location.search);
 
 })();
 
@@ -3987,7 +3989,7 @@
 ﻿/*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/09/08 15:49
+* update:2015/09/18 17:10
 */
 (function (undefined) {
     "use strict";

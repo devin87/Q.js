@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/09/08 15:49
+* update:2015/09/18 17:10
 */
 (function (undefined) {
     "use strict";
