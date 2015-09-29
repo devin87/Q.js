@@ -128,9 +128,12 @@
     //获取页名称
     function get_page_name(path) {
         var pathname = (path || location.pathname).toLowerCase().replace(/\\/g, "/"),
-            index = pathname.lastIndexOf("/");
+            start = pathname.lastIndexOf("/") + 1,
+            end = pathname.indexOf("?", start);
 
-        return index != -1 ? pathname.slice(index + 1) : pathname;
+        if (end == -1) end = pathname.indexOf("#", start);
+
+        return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
     }
 
     var map_loaded_resource = {},

@@ -1585,9 +1585,12 @@
     //获取页名称
     function get_page_name(path) {
         var pathname = (path || location.pathname).toLowerCase().replace(/\\/g, "/"),
-            index = pathname.lastIndexOf("/");
+            start = pathname.lastIndexOf("/") + 1,
+            end = pathname.indexOf("?", start);
 
-        return index != -1 ? pathname.slice(index + 1) : pathname;
+        if (end == -1) end = pathname.indexOf("#", start);
+
+        return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
     }
 
     var map_loaded_resource = {},
@@ -4751,7 +4754,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/09/10 17:55
+* update:2015/09/28 18:20
 */
 (function (undefined) {
     "use strict";
@@ -4770,6 +4773,7 @@
 
         ready = Q.ready,
 
+        getChilds = Q.getChilds,
         querySelectorAll = Q.query,
         matchesSelector = Q.matches,
 
@@ -4866,40 +4870,13 @@
         _set: function (list) {
             var self = this,
                 i = 0,
-                length = list.length,
-                last = length > 3 ? 3 : length;
+                length = list.length;
 
             self.list = list;
             self.length = length;
 
             //支持通过属性方式获取前3个元素 eg: $("a")[0]
-            for (; i < last; i++) self[i] = list[i];
-
-            return self;
-        },
-
-        //缓存元素列表,内部调用
-        _save: function () {
-            var self = this;
-
-            self._cache.push({ list: self.list, _es: self._es });
-            self._level++;
-
-            return self;
-        },
-        //回到上一级元素
-        end: function () {
-            var self = this,
-                level = self._level;
-
-            if (level > 0) level--;
-            self._level = level;
-
-            var data = self._cache[level];
-            self._set(data.list);
-            self._es = data._es;
-
-            if (level > 1) self._cache.pop();
+            for (; i < 3; i++) self[i] = list[i];
 
             return self;
         },
@@ -4948,16 +4925,15 @@
                 list = self.list,
                 ret = [];
 
-            self._save();
-
-            if (typeof selector == "string") ret = matchesSelector(list, selector);
-            else if (isFunc(selector)) {
+            if (typeof selector == "string") {
+                ret = matchesSelector(list, selector);
+            } else if (isFunc(selector)) {
                 for (var i = 0, len = list.length; i < len; i++) {
                     if (selector.call(list[i], i, list[i])) ret.push(list[i]);
                 }
             }
 
-            return self._set(ret);
+            return new SimpleQuery(ret);
         },
 
         //查找元素
@@ -4967,7 +4943,7 @@
 
         //筛选指定索引的元素
         eq: function (i) {
-            return this._save()._set([this.get(i)]);
+            return new SimpleQuery([this.get(i)]);
         },
         //筛选第一个元素
         first: function () {
@@ -5054,6 +5030,17 @@
                 if (i == 0) element.parentNode.insertBefore(el, element);
                 el.appendChild(element);
             });
+        },
+
+        //获取所有子元素
+        children: function () {
+            var list = [];
+
+            this.each(function () {
+                list = list.concat(getChilds(this));
+            });
+
+            return new SimpleQuery(list);
         }
     });
 
@@ -5236,7 +5223,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/17 12:07
+* update:2015/09/29 18:03
 */
 (function (undefined) {
     "use strict";
@@ -5400,7 +5387,7 @@
 
 		                switch (val) {
 		                    case "show":
-		                        val = getStyle(el, p);
+		                        val = this.getElStyle(el, p);
 		                        cfg._show = true;
 		                        break;
 		                    case "hide":
@@ -5764,7 +5751,9 @@
 
 		    //	    return el.style[p] || el.currentStyle[p];
 		    //	},
-		    getElStyle: getStyle,
+		    getElStyle: function (el, p) {
+		        return el.style[p] || getStyle(el, p);
+		    },
 
 		    /**
 			 * Get color property value to decimal RGB array

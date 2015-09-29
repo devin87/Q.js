@@ -4,7 +4,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/17 12:07
+* update:2015/09/29 18:03
 */
 (function (undefined) {
     "use strict";
@@ -168,7 +168,7 @@
 
 		                switch (val) {
 		                    case "show":
-		                        val = getStyle(el, p);
+		                        val = this.getElStyle(el, p);
 		                        cfg._show = true;
 		                        break;
 		                    case "hide":
@@ -532,7 +532,9 @@
 
 		    //	    return el.style[p] || el.currentStyle[p];
 		    //	},
-		    getElStyle: getStyle,
+		    getElStyle: function (el, p) {
+		        return el.style[p] || getStyle(el, p);
+		    },
 
 		    /**
 			 * Get color property value to decimal RGB array
