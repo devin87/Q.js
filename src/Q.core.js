@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/09/22 14:04
+* update:2015/09/30 15:40
 */
 (function (undefined) {
     "use strict";
@@ -256,8 +256,9 @@
         //document.getBoxObjectFor => firefox3.5-
         //window.mozInnerScreenX   => firefox3.6+
         engine_name = "gecko";
-    } else if (window.WebKitPoint || window.devicePixelRatio) {
-        //window.WebKitPoint => chrome8+
+    } else if (window.webkitMediaStream || window.WebKitPoint) {
+        //window.WebKitPoint        => chrome38-
+        //window.webkitMediaStream  => chrome39+
         engine_name = "webkit";
     }
 

@@ -1460,7 +1460,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/09/22 14:04
+* update:2015/09/30 15:40
 */
 (function (undefined) {
     "use strict";
@@ -1713,8 +1713,9 @@
         //document.getBoxObjectFor => firefox3.5-
         //window.mozInnerScreenX   => firefox3.6+
         engine_name = "gecko";
-    } else if (window.WebKitPoint || window.devicePixelRatio) {
-        //window.WebKitPoint => chrome8+
+    } else if (window.webkitMediaStream || window.WebKitPoint) {
+        //window.WebKitPoint        => chrome38-
+        //window.webkitMediaStream  => chrome39+
         engine_name = "webkit";
     }
 
@@ -2200,7 +2201,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/09/18 10:52
+* update:2015/10/12 11:09
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -3140,14 +3141,15 @@
 
         tag = rules[2];
 
-        matched = els ? els : relative[rule](contexts, tag || "*");
+        matched = els || relative[rule](contexts, tag || "*");
 
+        //eg:div#test
         if (els && tag) {
-            tag = tag.toUpperCase();
             matched = [];
+            tag = tag.toUpperCase();
+
             for (var i = 0, len = els.length; i < len; i++) {
-                el = els[i];
-                if (el.tagName == tag) matched.push(el);
+                if (els[i].tagName == tag) matched.push(els[i]);
             }
         }
 
@@ -3167,57 +3169,6 @@
     }
 
     /**
-    * get matched HTMLElement array
-    * 
-    * @param  {Array}  els 
-    * @param  {String} selector      
-    * @param  {Array}  contexts       
-    * @return {Array}  Matched HTMLElement array
-    */
-    function matches(els, selector, contexts) {
-        var selectors = replaceAttrPseudo(trim(selector)).split(","),
-            context = contexts,
-            results = [],
-            rules, i, j, n, m;
-
-        // each selector split by comma
-        for (i = 0, j = selectors.length; i < j; i++) {
-            selector = selectors[i];
-
-            // relative rule array 
-            // add defalut rule " "
-            rules = (" " + selector).match(RE_RULE);
-
-            // selector on both sides of relative rule  
-            selector = selector.match(RE_N_RULE);
-
-            // selector start with relative rule
-            // remove defalut rule " "
-            if (rules.length > selector.length) {
-                rules.shift();
-            }
-
-            contexts = els || context;
-
-            // parse selector by each relative rule
-            for (n = 0, m = rules.length; n < m; n++) {
-                contexts = parse(selector[n], contexts, rules[n], els ? contexts : undefined);
-            }
-
-            // concat results of comma delimited selector
-            results = results.concat(contexts);
-        }
-
-        if (j > 1) {
-            // if here, may hava duplicate HTMLElement
-            // remove duplicate
-            return makeDiff(results);
-        }
-
-        return results;
-    }
-
-    /**
 	* Get HTMLElement array by selector and context
 	* 
 	* @param  {String} selector  
@@ -3225,7 +3176,8 @@
 	* @return {Array} Array of HTMLElement 
 	*/
     function query(selector, context) {
-        var contexts;
+        var results = [],
+			selectors, contexts, rules, i, j, n, m;
 
         switch (typeof context) {
             case "undefined":
@@ -3247,7 +3199,44 @@
                 }
         }
 
-        return matches(undefined, selector, contexts);
+        selectors = replaceAttrPseudo(trim(selector)).split(",");
+        context = contexts;
+
+        // each selector split by comma
+        for (i = 0, j = selectors.length; i < j; i++) {
+            selector = selectors[i];
+
+            // relative rule array 
+            // add defalut rule " "
+            rules = (" " + selector).match(RE_RULE);
+
+            // selector on both sides of relative rule  
+            selector = selector.match(RE_N_RULE);
+
+            // selector start with relative rule
+            // remove defalut rule " "
+            if (rules.length > selector.length) {
+                rules.shift();
+            }
+
+            contexts = context;
+
+            // parse selector by each relative rule
+            for (n = 0, m = rules.length; n < m; n++) {
+                contexts = parse(selector[n], contexts, rules[n]);
+            }
+
+            // concat results of comma delimited selector
+            results = results.concat(contexts);
+        }
+
+        if (j > 1) {
+            // if here, may hava duplicate HTMLElement
+            // remove duplicate
+            return makeDiff(results);
+        }
+
+        return results;
     }
 
     //查询匹配的元素,返回数组(Array)
@@ -3261,10 +3250,31 @@
         return query(selector, context);
     };
 
+    //判断元素是否符合指定的选择器
+    function matchesSelector(el, selector) {
+        if (!el || el.nodeType !== 1) return false;
+
+        var matches = el.matches || el.matchesSelector || el.webkitMatchesSelector || el.mozMatchesSelector || el.oMatchesSelector || el.msMatchesSelector;
+        if (matches) return matches.call(el, selector);
+
+        var pNode = el.parentNode, tmpNode;
+        if (!pNode) {
+            tmpNode = pNode = document.createElement("div");
+            pNode.appendChild(el);
+        }
+
+        var matched = Q.query(selector, pNode).indexOf(el) != -1;
+        if (tmpNode) tmpNode.removeChild(el);
+
+        return matched;
+    }
+
     //根据 selector 获取匹配的元素列表
-    //els: 要匹配的元素列表
+    //els: 要匹配的元素或元素列表
     Q.matches = function (els, selector) {
-        return matches(els, selector);
+        return makeArray(els).filter(function (el) {
+            return matchesSelector(el, selector);
+        });
     };
 
 })();
@@ -5223,7 +5233,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/29 18:03
+* update:2015/10/08 10:50
 */
 (function (undefined) {
     "use strict";
@@ -5645,8 +5655,11 @@
 
 		            //清理工作
 		            var data = this.getElData(el);
-		            if (data.cssText) el.style.cssText = data.cssText;
-		            if (data._hide) cssHide(el);
+		            if (data.cssText != undefined) el.style.cssText = data.cssText;
+
+		            if (data._show) cssShow(el);
+		            else if (data._hide) cssHide(el);
+
 		            data.started = data.cssText = data._show = data._hide = undefined;
 
 		            if (cfg.callback) {

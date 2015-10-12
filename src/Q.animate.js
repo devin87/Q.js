@@ -4,7 +4,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/09/29 18:03
+* update:2015/10/08 10:50
 */
 (function (undefined) {
     "use strict";
@@ -426,8 +426,11 @@
 
 		            //清理工作
 		            var data = this.getElData(el);
-		            if (data.cssText) el.style.cssText = data.cssText;
-		            if (data._hide) cssHide(el);
+		            if (data.cssText != undefined) el.style.cssText = data.cssText;
+
+		            if (data._show) cssShow(el);
+		            else if (data._hide) cssHide(el);
+
 		            data.started = data.cssText = data._show = data._hide = undefined;
 
 		            if (cfg.callback) {
