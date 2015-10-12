@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2015/09/09 10:50
+* update:2015/10/12 15:12
 */
 (function (undefined) {
     "use strict";
@@ -125,7 +125,7 @@
 
     //判断字符串是否是符合条件的整数
     function checkInt(str, min, max) {
-        return checkNum(str, min, max) && n === Math.floor(n);
+        return !isNaN(str) && isInt(+str, min, max);
     }
 
     //将字符串转为大写,若str不是字符串,则返回defValue
