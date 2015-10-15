@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列
 * author:devin87@qq.com
-* update:2015/08/13 10:45
+* update:2015/10/15 10:39
 */
 (function (undefined) {
     "use strict";
@@ -328,7 +328,9 @@
 
     //ajax队列
     function ajaxQueue(ops) {
-        return new Queue(extend(ops || {}, {
+        ops = ops || {};
+
+        return new Queue(extend(ops, {
             exec: ops.ajax || Q.ajax || $.ajax,
             injectIndex: 1,
             injectCallback: "complete"

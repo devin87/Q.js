@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/09/28 18:20
+* update:2015/10/15 12:19
 */
 (function (undefined) {
     "use strict";
@@ -97,6 +97,12 @@
         if (typeof selector != "string") return makeArray(selector);
 
         return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector, context);
+    }
+
+    function makeEls(el) {
+        if (!el) return [];
+
+        return el.list || query(el);
     }
 
     function SimpleQuery(selector, context) {
@@ -293,6 +299,11 @@
             });
 
             return new SimpleQuery(list);
+        },
+
+        //判断元素是否隐藏
+        isHidden: function () {
+            return this.list.every(Q.isHidden);
         }
     });
 
@@ -332,10 +343,13 @@
         appendTo: "beforeEnd",
         insertAfter: "afterEnd"
     }, function (name, where) {
+        //此处与jquery不同,若ele为选择器,则仅追加到第一个匹配的元素
         sp[name] = function (ele) {
-            return this.each(function () {
-                insertEle(ele[0] || ele, where, this);
-            });
+            var el = makeEls(ele)[0];
+
+            return el ? this.each(function () {
+                insertEle(el, where, this);
+            }) : this;
         };
     });
 

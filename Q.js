@@ -1111,7 +1111,7 @@
 ﻿/*
 * Q.Queue.js 队列
 * author:devin87@qq.com
-* update:2015/08/13 10:45
+* update:2015/10/15 10:39
 */
 (function (undefined) {
     "use strict";
@@ -1437,7 +1437,9 @@
 
     //ajax队列
     function ajaxQueue(ops) {
-        return new Queue(extend(ops || {}, {
+        ops = ops || {};
+
+        return new Queue(extend(ops, {
             exec: ops.ajax || Q.ajax || $.ajax,
             injectIndex: 1,
             injectCallback: "complete"
@@ -2201,7 +2203,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/10/12 11:09
+* update:2015/10/15 12:05
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -3269,6 +3271,8 @@
         return matched;
     }
 
+    Q.isMatch = matchesSelector;
+
     //根据 selector 获取匹配的元素列表
     //els: 要匹配的元素或元素列表
     Q.matches = function (els, selector) {
@@ -3282,7 +3286,7 @@
 ﻿/*
 * Q.dom.js DOM操作
 * author:devin87@qq.com
-* update:2015/09/08 16:05
+* update:2015/10/15 15:38
 */
 (function (undefined) {
     "use strict";
@@ -3462,12 +3466,20 @@
         return parseFloat(getStyleValue(ele, styles || getComputedStyle(ele), key)) || 0;
     }
 
+    function getPaddingSize(ele, type) {
+        return type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
+    }
+
+    function getBorderSize(ele, type) {
+        return type == "Width" ? getStyleFloat(ele, "borderLeftWidth") + getStyleFloat(ele, "borderRightWidth") : getStyleFloat(ele, "borderTopWidth") + getStyleFloat(ele, "borderBottomWidth");
+    }
+
     //获取元素尺寸,不考虑怪异模式
     //type:  Width|Height
     //level: 0,1,2 => width,width+padding,width+padding+border;height类似
     function getSizeOf(ele, type, level) {
         if (ele == ele.window) return view["get" + type]();
-        if (ele.body) return ele.documentElement["offset" + type];
+        if (ele.body) return view["getScroll" + type]();
 
         var cssText;
         if (isHidden(ele)) {
@@ -3476,24 +3488,17 @@
             cssShow(ele);
         }
 
-        var value;
+        level = level || 0;
 
-        if (level === 2) value = ele["offset" + type];
-        else {
-            value = ele["client" + type];
-
-            if (level !== 1 && value > 0) value -= type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
-
-            //is_quirk_mode && browser_ie < 10 => value=ele["offset" + type];
-            //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
-        }
-
-        if (!value) {
+        //一些奇葩模式,比如IE11以IE7文档模式运行时,检测不到怪异模式,clientWidth也可能获取不到宽度
+        var value = ele["offset" + type];
+        if (value) {
+            if (level < 2) value -= getBorderSize(ele, type);
+            if (level < 1) value -= getPaddingSize(ele, type);
+        } else {
             value = getStyleFloat(ele, type == "Width" ? "width" : "height");
-            if (value) {
-                if (level) value += type == "Width" ? getStyleFloat(ele, "paddingLeft") + getStyleFloat(ele, "paddingRight") : getStyleFloat(ele, "paddingTop") + getStyleFloat(ele, "paddingBottom");
-                if (level == 2) value += type == "Width" ? getStyleFloat(ele, "borderLeftWidth") + getStyleFloat(ele, "borderRightWidth") : getStyleFloat(ele, "borderTopWidth") + getStyleFloat(ele, "borderBottomWidth");
-            }
+            if (level > 0) value += getPaddingSize(ele, type);
+            if (value > 1) value += getBorderSize(ele, type);
         }
 
         if (cssText != undefined) ele.style.cssText = cssText;
@@ -3650,23 +3655,25 @@
         isHidden(ele) ? cssShow(ele) : cssHide(ele);
     }
 
+    var DEF_OFFSET = { left: 0, top: 0 };
+
     //获取元素偏移 {left,top,width,height}
     function getOffset(ele) {
+        if (!ele) return;
+
+        var root = Q.root;
+        if (ele == root) return DEF_OFFSET;
+
         //support:IE6+ | FF3.0+ | Chrome1+ | Safari4+ | Opera9.5+
         //在IE、Firefox、Opera中getBoundingClientRect性能比offset迭代(offsetLeft、offsetTop)快1-4倍,Chrome中2者差不多
         //bug:IE6、7会多出2px,IE8在根元素上会少2px,使用 css: html{margin:0;}后,IE7、8问题依旧,IE6(XP)会在body上多出2px
-        var root = Q.root,
-            rect = ele.getBoundingClientRect(),
+        var rect = ele.getBoundingClientRect(),
 
             left = rect.left + (window.pageXOffset || root.scrollLeft) - root.clientLeft,
             top = rect.top + (window.pageYOffset || root.scrollTop) - root.clientTop;
 
-        //IE6根元素
-        if (left < 0) left = 0;
-        if (top < 0) top = 0;
-
         //仅IE7根元素得出的宽高不包括滚动条的宽高
-        return { left: left, top: top, width: rect.right - rect.left, height: rect.bottom - rect.top };
+        return { left: left, top: top };
     }
 
     //设置元素偏移
@@ -3692,7 +3699,7 @@
         if (!pNode) pNode = ele.offsetParent;
 
         var offset = getOffset(ele),
-            poffset = getOffset(pNode);
+            poffset = getOffset(pNode) || DEF_OFFSET;
 
         offset.left -= poffset.left + getStyleFloat(pNode, "borderLeftWidth") + getStyleFloat(ele, "marginLeft");
         offset.top -= poffset.top + getStyleFloat(pNode, "borderTopWidth") + getStyleFloat(ele, "marginTop");
@@ -3710,14 +3717,19 @@
         setCssIfNot(ele, "position", "absolute");
 
         var size = view.getSize(),
-            offset = getOffset(ele.offsetParent),
+            offset = getOffset(ele.offsetParent) || DEF_OFFSET,
 
-            left = Math.round((size.width - ele.offsetWidth) / 2) - offset.left + view.getScrollLeft(),
-            top = Math.round((size.height - ele.offsetHeight) / 2) - offset.top + view.getScrollTop(),
+            left = Math.round((size.width - outerWidth(ele)) / 2) - offset.left + view.getScrollLeft(),
+            top = Math.round((size.height - outerHeight(ele)) / 2) - offset.top + view.getScrollTop(),
 
             pos = { left: Math.max(left, 0), top: Math.max(top, 0) };
 
         return onlyPos ? pos : css(ele, pos);
+    }
+
+    //获取元素居中坐标
+    function getCenter(ele) {
+        return setCenter(ele, true);
     }
 
     var NODE_PREV = "previousSibling",
@@ -3968,6 +3980,7 @@
 
         setCssIfNot: setCssIfNot,
         setCenter: setCenter,
+        getCenter: getCenter,
 
         walk: walk,
         getPrev: getPrev,
@@ -4764,7 +4777,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/09/28 18:20
+* update:2015/10/15 12:19
 */
 (function (undefined) {
     "use strict";
@@ -4855,6 +4868,12 @@
         if (typeof selector != "string") return makeArray(selector);
 
         return isTag(selector) ? makeArray(parseHTML(selector, true)) : querySelectorAll(selector, context);
+    }
+
+    function makeEls(el) {
+        if (!el) return [];
+
+        return el.list || query(el);
     }
 
     function SimpleQuery(selector, context) {
@@ -5051,6 +5070,11 @@
             });
 
             return new SimpleQuery(list);
+        },
+
+        //判断元素是否隐藏
+        isHidden: function () {
+            return this.list.every(Q.isHidden);
         }
     });
 
@@ -5090,10 +5114,13 @@
         appendTo: "beforeEnd",
         insertAfter: "afterEnd"
     }, function (name, where) {
+        //此处与jquery不同,若ele为选择器,则仅追加到第一个匹配的元素
         sp[name] = function (ele) {
-            return this.each(function () {
-                insertEle(ele[0] || ele, where, this);
-            });
+            var el = makeEls(ele)[0];
+
+            return el ? this.each(function () {
+                insertEle(el, where, this);
+            }) : this;
         };
     });
 

@@ -5,7 +5,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/10/12 11:09
+* update:2015/10/15 12:05
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -1072,6 +1072,8 @@
 
         return matched;
     }
+
+    Q.isMatch = matchesSelector;
 
     //根据 selector 获取匹配的元素列表
     //els: 要匹配的元素或元素列表
