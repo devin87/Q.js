@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2015/10/16 11:05
+* update:2015/12/02 13:15
 */
 (function (undefined) {
     "use strict";
@@ -179,7 +179,7 @@
     //eg:按1-10项产生斐波那契数列 =>arr(10, function (value, i, list) { return i > 1 ? list[i - 1] + list[i - 2] : 1; })
     //length:数组长度
     //value:数组项的初始值
-    //step:第增值或处理函数(当前值,索引,当前产生的数组)
+    //step:递增值或处理函数(当前值,索引,当前产生的数组)
     function arr(length, value, step) {
         if (isFunc(value)) {
             step = value;
@@ -205,6 +205,28 @@
         }
 
         return list;
+    }
+
+    //根据指定的键或索引抽取数组项的值
+    //eg:vals([{id:1},{id:2}], "id")  =>  [1,2]
+    //eg:vals([[1,"a"],[2,"b"]], 1)   =>  ["a","b"]
+    //skipUndefined:是否跳过值不存在的项,默认为true
+    function vals(list, prop, skipUndefined) {
+        if (!list) return [];
+
+        skipUndefined = skipUndefined !== false;
+
+        var len = list.length,
+            i = 0,
+            item,
+            tmp = [];
+
+        for (; i < len; i++) {
+            item = list[i];
+            if ((item && item[prop] != undefined) || !skipUndefined) tmp.push(item[prop]);
+        }
+
+        return tmp;
     }
 
     //prototype 别名 eg:alias(Array,"forEach","each");
@@ -235,6 +257,34 @@
             if (forced || destination[key] === undefined) destination[key] = source[key];
         }
         return destination;
+    }
+
+    //数据克隆（for undefined、null、string、number、boolean、array、object）
+    function clone(data) {
+        if (!data) return data;
+
+        switch (typeof data) {
+            case "string":
+            case "number":
+            case "boolean":
+                return data;
+        }
+
+        var result;
+
+        if (isArray(data)) {
+            result = [];
+            for (var i = 0, len = data.length; i < len; i++) {
+                result[i] = clone(data[i]);
+            }
+        } else if (isObject(data)) {
+            result = {};
+            for (var key in data) {
+                if (has.call(data, key)) result[key] = clone(data[key]);
+            }
+        }
+
+        return result;
     }
 
     //将数组或类数组转换为键值对
@@ -728,10 +778,8 @@
         //根据指定的键或索引抽取数组项的值 
         //eg:[{id:1},{id:2}]    ->  ret.items("id") => [1,2]
         //eg:[[1,"a"],[2,"b"]]  ->  ret.items(1)    => ["a","b"]
-        items: function (key) {
-            return this.map(function (obj) {
-                return obj[key];
-            });
+        items: function (prop, skipUndefined) {
+            return vals(this, prop, skipUndefined);
         },
         //将数组转换为键值对
         //value:若为空,则使用数组索引;为处理函数,需返回包含键值的数组 eg: value(item,i) => [key,value]
@@ -1096,9 +1144,11 @@
         makeArray: makeArray,
 
         arr: arr,
+        vals: vals,
 
         alias: alias,
         extend: extend,
+        clone: clone,
 
         toMap: toMap,
         toObjectMap: toObjectMap,
