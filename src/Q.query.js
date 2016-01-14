@@ -5,7 +5,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/10/15 12:05
+* update:2016/01/14 10:48
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -745,24 +745,24 @@
             }
         },
 
-        "first-child": function (el, i, len) {
+        "first-child": function (el) {
             return checkSibling(el, "previousSibling", false);
         },
 
-        "last-child": function (el, i, len) {
+        "last-child": function (el) {
             return checkSibling(el, "nextSibling", false);
         },
 
-        "only-child": function (el, i, len) {
+        "only-child": function (el) {
             return checkSibling(el, "previousSibling", false) &&
                    checkSibling(el, "nextSibling", false);
         },
 
-        "first-of-type": function (el, i, len) {
+        "first-of-type": function (el) {
             return checkSibling(el, "previousSibling", true, el.nodeName);
         },
 
-        "last-of-type": function (el, i, len) {
+        "last-of-type": function (el) {
             return checkSibling(el, "nextSibling", true, el.nodeName);;
         },
 

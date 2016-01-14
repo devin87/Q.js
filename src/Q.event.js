@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/09/18 17:10
+* update:2016/01/14 10:47
 */
 (function (undefined) {
     "use strict";
@@ -288,7 +288,7 @@
 
     //批量添加事件,执行一次后取消
     function add_events_one(elements, types, selector, handle) {
-        return add_events(elements, types, selector, handler, true);
+        return add_events(elements, types, selector, handle, true);
     }
 
     //触发事件

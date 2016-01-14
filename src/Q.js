@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2015/12/02 13:15
+* update:2016/01/14 10:35
 */
 (function (undefined) {
     "use strict";
@@ -986,10 +986,11 @@
     //types:自定义事件列表
     //bind:事件函数绑定的上下文 eg:fn.call(bind)
     function Listener(types, bind) {
-        this.map = {};
-        this.bind = bind;
-
         var self = this;
+
+        self.map = {};
+        self.bind = bind;
+
         types.forEach(function (type) {
             self.map[type] = [];
         });
@@ -998,7 +999,7 @@
     Listener.prototype = {
         constructor: Listener,
 
-        //添加事件 eg:listener.add("start",fn);
+        //添加自定义事件 eg:listener.add("start",fn);
         add: function (type, fn) {
             var map = this.map;
 
@@ -1012,15 +1013,31 @@
 
             return this;
         },
+        //移除自定义事件,若fn为空,则移除该类型下的所有事件
+        remove: function (type, fn) {
+            if (fn != undefined) {
+                var list = this.map[type], i = list.length;
+                while (--i >= 0) {
+                    if (list[i] == fn) list = list.splice(i, 1);
+                }
+            } else {
+                this.map[type] = [];
+            }
+
+            return this;
+        },
         //触发自定义事件 eg:listener.trigger("click",args);
         trigger: function (type, args) {
             var self = this,
-                list = self.map[type];
+                list = self.map[type],
+                len = list.length,
+                i = 0;
 
-            return list.length > 0 ? list.map(function (fn) {
-                //确保args为数组
-                return fn.apply(self.bind, [].concat(args));
-            }) : undefined;
+            for (; i < len; i++) {
+                if (list[i].apply(self.bind, [].concat(args)) === false) break;
+            }
+
+            return self;
         }
     };
 

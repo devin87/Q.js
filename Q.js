@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2015/12/02 13:15
+* update:2016/01/14 10:35
 */
 (function (undefined) {
     "use strict";
@@ -986,10 +986,11 @@
     //types:自定义事件列表
     //bind:事件函数绑定的上下文 eg:fn.call(bind)
     function Listener(types, bind) {
-        this.map = {};
-        this.bind = bind;
-
         var self = this;
+
+        self.map = {};
+        self.bind = bind;
+
         types.forEach(function (type) {
             self.map[type] = [];
         });
@@ -998,7 +999,7 @@
     Listener.prototype = {
         constructor: Listener,
 
-        //添加事件 eg:listener.add("start",fn);
+        //添加自定义事件 eg:listener.add("start",fn);
         add: function (type, fn) {
             var map = this.map;
 
@@ -1012,15 +1013,31 @@
 
             return this;
         },
+        //移除自定义事件,若fn为空,则移除该类型下的所有事件
+        remove: function (type, fn) {
+            if (fn != undefined) {
+                var list = this.map[type], i = list.length;
+                while (--i >= 0) {
+                    if (list[i] == fn) list = list.splice(i, 1);
+                }
+            } else {
+                this.map[type] = [];
+            }
+
+            return this;
+        },
         //触发自定义事件 eg:listener.trigger("click",args);
         trigger: function (type, args) {
             var self = this,
-                list = self.map[type];
+                list = self.map[type],
+                len = list.length,
+                i = 0;
 
-            return list.length > 0 ? list.map(function (fn) {
-                //确保args为数组
-                return fn.apply(self.bind, [].concat(args));
-            }) : undefined;
+            for (; i < len; i++) {
+                if (list[i].apply(self.bind, [].concat(args)) === false) break;
+            }
+
+            return self;
         }
     };
 
@@ -2281,7 +2298,7 @@
 * https://github.com/scottcgi/MojoJS
 
 * author:devin87@qq.com
-* update:2015/10/15 12:05
+* update:2016/01/14 10:48
 
 * fixed bug:https://github.com/scottcgi/MojoJS/issues/1
 * add pseudo (lt,gt,eq) eg:query("a:lt(3)")
@@ -3021,24 +3038,24 @@
             }
         },
 
-        "first-child": function (el, i, len) {
+        "first-child": function (el) {
             return checkSibling(el, "previousSibling", false);
         },
 
-        "last-child": function (el, i, len) {
+        "last-child": function (el) {
             return checkSibling(el, "nextSibling", false);
         },
 
-        "only-child": function (el, i, len) {
+        "only-child": function (el) {
             return checkSibling(el, "previousSibling", false) &&
                    checkSibling(el, "nextSibling", false);
         },
 
-        "first-of-type": function (el, i, len) {
+        "first-of-type": function (el) {
             return checkSibling(el, "previousSibling", true, el.nodeName);
         },
 
-        "last-of-type": function (el, i, len) {
+        "last-of-type": function (el) {
             return checkSibling(el, "nextSibling", true, el.nodeName);;
         },
 
@@ -4093,7 +4110,7 @@
 ﻿/*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2015/09/18 17:10
+* update:2016/01/14 10:47
 */
 (function (undefined) {
     "use strict";
@@ -4377,7 +4394,7 @@
 
     //批量添加事件,执行一次后取消
     function add_events_one(elements, types, selector, handle) {
-        return add_events(elements, types, selector, handler, true);
+        return add_events(elements, types, selector, handle, true);
     }
 
     //触发事件
@@ -4855,7 +4872,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/10/15 12:19
+* update:2016/01/14 10:48
 */
 (function (undefined) {
     "use strict";
@@ -5228,7 +5245,7 @@
     ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
-        sp[name] = function (value) {
+        sp[name] = function () {
             return this._getVal(fn);
         };
     });

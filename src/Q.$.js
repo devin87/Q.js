@@ -6,7 +6,7 @@
 /*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2015/10/15 12:19
+* update:2016/01/14 10:48
 */
 (function (undefined) {
     "use strict";
@@ -379,7 +379,7 @@
     ["innerWidth", "innerHeight", "outerWidth", "outerHeight", "getPrev", "getAllPrev", "getNext", "getAllNext", "getFirst", "getLast", "getParent", "getParents", "getChilds", "position"].forEach(function (name) {
         var fn = get_dom_fn(name);
 
-        sp[name] = function (value) {
+        sp[name] = function () {
             return this._getVal(fn);
         };
     });
