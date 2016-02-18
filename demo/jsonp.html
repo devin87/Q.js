@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>JSONP Test</title>
+    <style type="text/css">
+        #view { padding: 20px; word-break: break-all; word-wrap: break-word; }
+    </style>
+</head>
+
+<body>
+    <div id="view"></div>
+
+    <script src="../src/Q.js"></script>
+    <script src="../src/Q.core.js"></script>
+    <script src="../src/Q.ajax.js"></script>
+
+    <script type="text/javascript">
+        function log(msg) {
+            var args = arguments,
+                rs = args.length > 1 && Q.makeArray(arguments).map(function (o) { return o && Q.isObject(o) ? JSON.stringify(o) : o + ""; }).join(" ");
+
+            document.getElementById("view").innerHTML += (msg !== undefined ? rs || ("" + msg) : "").htmlEncode() + "<br/>";
+        }
+
+        var boxView = document.getElementById("view");
+
+        //方法1
+        Q.ajax("http://www.morequick.net/api/myip", {
+            dataType: "jsonp",
+            jsonp: "jsonpcallback",
+            timeout: 1000,
+            debug: true,
+            success: function (data) {
+                log("【方法1】my ip: ", data);
+                log();
+            },
+            error: function (ops, xhr) {
+                log("【方法1】error: ", ops.timedout ? "超时" : "网络错误");
+            }
+        });
+
+        //方法2
+        Q.jsonp("http://www.morequick.net/api/myip", function (data) {
+            log("【方法2】my ip: ", data);
+            log();
+        }, function () {
+            log("【方法2】error: 网络错误");
+        });
+
+    </script>
+</body>
+</html>

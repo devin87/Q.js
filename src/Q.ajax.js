@@ -2,7 +2,7 @@
 /*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2015/09/08 09:35
+* update:2016/02/18 16:10
 */
 (function (undefined) {
     "use strict";
@@ -153,7 +153,7 @@
             timer && clearTimeout(timer);
 
             script.onload = script.onerror = script.onreadystatechange = null;
-            //head.removeChild(script);
+            head.removeChild(script);
             if (script_for_error) head.removeChild(script_for_error);
         };
 

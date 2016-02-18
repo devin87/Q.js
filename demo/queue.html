@@ -1,0 +1,205 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Queue Test</title>
+</head>
+
+<body>
+    <div id="view"></div>
+
+    <script src="../src/Q.js"></script>
+    <script src="../src/Q.Queue.js"></script>
+
+    <script type="text/javascript">
+        var Queue = Q.Queue;
+
+        function log(msg) {
+            document.getElementById("view").innerHTML += (msg !== undefined ? "" + msg : "").htmlEncode() + "<br/>";
+        }
+
+        if (!window.console) window.console = { log: log };
+
+        function f1(arg1, arg2, callback) {
+            log("f1 start ------------------");
+            log("arg1: " + arg1 + "          arg2: " + arg2);
+
+            setTimeout(function () {
+                log("f1 end ------------------");
+
+                callback && callback("result1");
+            }, 1500);
+        }
+
+        function f2(arg1, arg2, callback) {
+            log("f2 start ------------------");
+            log("arg1: " + arg1 + "          arg2: " + arg2);
+
+            setTimeout(function () {
+                log("f2 end ------------------");
+
+                callback && callback("result2");
+            }, 1000);
+        }
+
+        var q1 = new Queue({
+            tasks: [
+                [f1, "f1.1", "f1.2"],
+                [f2, "f2.1", "f2.2"]
+            ],
+
+            auto: false,
+            injectIndex: 2,
+
+            complete: function (tasks) {
+                log("q1: all is ok !");
+            }
+        });
+
+        //q1.add(f1, "f1.1", "f1.2", log).add(f2, "f2.1", "f2.2", log);
+
+        q1.on("end", function (task) {
+            log();
+        }).on("complete", function (tasks) {
+            var rs = tasks.items("result");
+
+            console.log(rs);
+        });
+
+        var q2 = Q.series([
+            function (callback) {
+                log("q2: 1 start");
+                setTimeout(function () {
+                    log("q2: 1 ok");
+                    callback("1+");
+                }, 2000);
+            },
+            function (callback) {
+                log("q2: 2 start");
+                setTimeout(function () {
+                    log("q2: 2 ok");
+                    callback("2+");
+                }, 1000);
+            }
+        ], function () {
+            log("q2: all is ok!");
+        }, { auto: false });
+
+        q2.on({
+            end: function () {
+                log();
+            },
+            complete: function () {
+                console.log(arguments);
+            }
+        });
+        
+        for (var i = 0; i < 1; i++) {
+            q2.addList({
+                one: function (callback) {
+                    log("q2: one start");
+                    setTimeout(function () {
+                        log("q2: one ok");
+                        callback("one+");
+                    }, 2000);
+                },
+                two: function (callback) {
+                    log("q2: two start");
+                    setTimeout(function () {
+                        log("q2: two ok");
+                        callback("two+");
+                    }, 1000);
+                }
+            });
+        }
+
+        var q3 = new Q.Queue({
+            tasks: [{ id: 3, name: "1-sa" }, { id: 8, name: "2-ba" }, { id: 15, name: "3-ca" }],
+            injectIndex: 1,
+            auto: false,
+
+            exec: function (obj, callback) {
+                setTimeout(function () {
+                    log("q3: " + obj.name);
+
+                    callback && callback();
+                }, (obj.id % 10) * 200);
+            },
+
+            complete: function () {
+                log();
+                log("q3: all is ok !");
+
+                //log();
+                //log();
+                //q4.start();
+            }
+        });
+
+        var q4 = new Q.Queue({
+            auto: false,
+            complete: function () {
+                log();
+                log("q4: all is ok !");
+            }
+        });
+
+        q4.add(function (callback) {
+            setTimeout(function () {
+                log("load data ……");
+                callback();
+            }, 1000);
+        }).add(function (callback) {
+            setTimeout(function () {
+                log("render UI ……");
+                callback();
+            }, 1000);
+        });
+
+        var q5 = Q.parallel({
+            data1: function (callback) {
+                log("load data1 ……");
+
+                setTimeout(function () {
+                    log();
+                    log("data1 loaded!");
+                    callback({ name: "data1", status: "ok" });
+                }, 580);
+            },
+
+            data2: function (callback) {
+                log("load data2 ……");
+
+                setTimeout(function () {
+                    log("data2 loaded!");
+                    callback({ name: "data2", status: "ok" });
+                }, 660);
+            }
+        }, function (obj) {
+            log();
+            log("q5: all is ok !");
+
+            console.log();
+            console.log(obj);
+        }, {
+            auto: false,
+            timeout: 5000,
+            end: function (task) {
+                console.log("q5 " + task.key + " status : " + task.state);
+            }
+        });
+
+        var q = new Queue({ injectCallback: "complete" });
+        q.addList([q1, q2, q3, q4]);
+
+        q.add(q5);
+
+        q.on("end", function (task) {
+            log();
+        }).on("complete", function () {
+            log();
+            log("----------------- all queue is ok ! -----------------");
+        });
+    </script>
+</body>
+</html>

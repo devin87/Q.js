@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2016/01/14 10:35
+* update:2016/02/17 16:52
 */
 (function (undefined) {
     "use strict";
@@ -318,15 +318,15 @@
     }
 
     //将对象数组转换为键值对
-    //keyProp:对象中作为键的属性
-    //valueProp:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
+    //propKey:对象中作为键的属性
+    //propValue:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
     //isBuildIndex:是否给对象添加index属性,值为对象在数组中的索引
-    function toObjectMap(list, keyProp, valueProp, isBuildIndex) {
+    function toObjectMap(list, propKey, propValue, isBuildIndex) {
         if (!list) return;
 
-        if (valueProp === true) {
-            isBuildIndex = valueProp;
-            valueProp = undefined;
+        if (propValue === true) {
+            isBuildIndex = propValue;
+            propValue = undefined;
         }
 
         var map = {};
@@ -337,7 +337,7 @@
 
             if (isBuildIndex) obj.index = i;
 
-            map[obj[keyProp]] = valueProp ? obj[valueProp] : obj;
+            map[obj[propKey]] = propValue ? obj[propValue] : obj;
         }
 
         return map;
@@ -612,19 +612,14 @@
         reverse: function () {
             return this.split("").reverse().join("");
         },
-        //转为html输出(html编码) eg:\n => <br/>
-        toHtml: function () {
+        //html编码 eg:\n => <br/>
+        htmlEncode: function () {
             return this.replace(/\x26/g, "&amp;").replace(/\x3c/g, "&lt;").replace(/\x3e/g, "&gt;").replace(/\r?\n|\r/g, "<br/>").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;").replace(/\s/g, "&nbsp;");
         },
-        //转为text输出(html解码) eg:<br/> => \n
-        toText: function () {
+        //html解码 eg:<br/> => \n
+        htmlDecode: function () {
             return this.replace(/<br[^>]*>/ig, "\n").replace(/<script[^>]*>([^~]|~)+?<\/script>/gi, "").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
         }
-    });
-
-    String.alias({
-        toHtml: "htmlEncode",
-        toText: "htmlDecode"
     });
 
     //----------------------------- Number extend -----------------------------
@@ -787,11 +782,11 @@
             return toMap(this, value, ignoreCase);
         },
         //将对象数组转换为键值对
-        //keyProp:对象中作为键的属性
-        //valueProp:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
+        //propKey:对象中作为键的属性
+        //propValue:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
         //isBuildIndex:是否给对象添加index属性,值为对象在数组中的索引
-        toObjectMap: function (keyProp, valueProp, isBuildIndex) {
-            return toObjectMap(this, keyProp, valueProp, isBuildIndex);
+        toObjectMap: function (propKey, propValue, isBuildIndex) {
+            return toObjectMap(this, propKey, propValue, isBuildIndex);
         }
     });
 
@@ -832,14 +827,14 @@
             return !isNaN(this.valueOf());
         },
         //格式化日期显示 eg:(new Date()).format("yyyy-MM-dd hh:mm:ss");
-        format: function (format, lang) {
-            lang = lang || {};
+        format: function (format, ops) {
+            ops = ops || {};
 
-            if (!this.isValid()) return lang.invalid || "--";
+            if (!this.isValid()) return ops.invalid || "--";
 
-            var months = lang.months,
-                weeks = lang.weeks || WEEKS,
-                aps = lang.aps || APS,
+            var months = ops.months,
+                weeks = ops.weeks || WEEKS,
+                aps = ops.aps || APS,
 
                 len = DATE_REPLACEMENTS.length,
                 i = 0;
@@ -1206,7 +1201,7 @@
 ﻿/*
 * Q.Queue.js 队列
 * author:devin87@qq.com
-* update:2015/10/15 10:39
+* update:2016/02/18 16:30
 */
 (function (undefined) {
     "use strict";
@@ -1263,7 +1258,7 @@
 
         self.reset();
 
-        delay(self.addList, self, 0, [tasks]);
+        self.addList(tasks);
     }
 
     factory(Queue).extend({
@@ -1557,7 +1552,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/09/30 15:40
+* update:2016/02/17 17:12
 */
 (function (undefined) {
     "use strict";
@@ -2177,9 +2172,6 @@
         quirk: is_quirk_mode,
 
         ready: ready,
-
-        encode: encode_url_param,
-        decode: decode_url_param,
 
         param: process_url_param,
         join: join_url,
@@ -4442,7 +4434,7 @@
 ﻿/*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2015/09/08 09:35
+* update:2016/02/18 16:10
 */
 (function (undefined) {
     "use strict";
@@ -4593,7 +4585,7 @@
             timer && clearTimeout(timer);
 
             script.onload = script.onerror = script.onreadystatechange = null;
-            //head.removeChild(script);
+            head.removeChild(script);
             if (script_for_error) head.removeChild(script_for_error);
         };
 

@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2015/09/30 15:40
+* update:2016/02/17 17:12
 */
 (function (undefined) {
     "use strict";
@@ -623,9 +623,6 @@
         quirk: is_quirk_mode,
 
         ready: ready,
-
-        encode: encode_url_param,
-        decode: decode_url_param,
 
         param: process_url_param,
         join: join_url,

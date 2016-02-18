@@ -1,0 +1,50 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Storeage Test</title>
+    <style type="text/css">
+        #view { padding: 20px; word-break: break-all; word-wrap: break-word; }
+    </style>
+</head>
+
+<body>
+    <div id="view">
+        <div>输入任意内容保存后刷新页面查看：</div>
+        <div>
+            <input type="text" id="text">
+            <input type="button" value="保存" id="btn-save">
+            <input type="button" value="删除" id="btn-del">
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script src="../src/Q.js"></script>
+    <script src="../src/Q.core.js"></script>
+
+    <script type="text/javascript">
+        var store = Q.store,
+            key = "QS-TEST",
+
+            input = document.getElementById("text"),
+            boxResult = document.getElementById("result");
+
+        var text = store.get(key) || "";
+
+        input.value = text;
+        boxResult.innerHTML = "上次保存的内容：" + text;
+
+        document.getElementById("btn-save").onclick = function () {
+            store.set(key, input.value);
+            alert("保存成功！");
+            location.reload();
+        };
+
+        document.getElementById("btn-del").onclick = function () {
+            store.remove(key);
+            alert("删除成功！");
+            location.reload();
+        };
+    </script>
+</body>
+</html>

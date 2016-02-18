@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列
 * author:devin87@qq.com
-* update:2015/10/15 10:39
+* update:2016/02/18 16:30
 */
 (function (undefined) {
     "use strict";
@@ -59,7 +59,7 @@
 
         self.reset();
 
-        delay(self.addList, self, 0, [tasks]);
+        self.addList(tasks);
     }
 
     factory(Queue).extend({
