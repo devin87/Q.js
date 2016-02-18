@@ -43,31 +43,25 @@ Array:
 	arr.del(index, n)
 	arr.unique(prop)
 	arr.clean()
-	arr.items(prop, skipUndefined)
-	arr.toMap(value, ignoreCase)
-	arr.toObjectMap(propKey, propValue, isBuildIndex)
+	arr.items(prop, skipUndefined)       //[{id:1,name:"aa"},{id:2,name:"bb"}].items("id")  => [1,2]
+	arr.toMap(value, ignoreCase)         //["a","b"].toMap(true)  => {a:true,b:true}
+	arr.toObjectMap(propKey, propValue)  //[{id:1,name:"aa"},{id:2,name:"bb"}].toObjectMap("id","name") => {1:"aa",2:"bb"}
 	
 Date:
 	Date.now()
-	Date.from(str)
-	Date.parts(t)
-	Date.total(part, t)
-	
-	date.isValid()
-	date.format(format, ops)
-	date.add(part, n)
-	date.diff(part, date)
-	date.fromUTC()
-	date.toUTC()
+	Date.from(str)             //Date.from("2015年6月17日")
+	date.format(format, ops)   //格式化日期显示 eg:new Date().format("yyyy/MM/dd hh:mm:ss");
+	date.add(part, n)          //按照part(y|M|d|h|m|s|ms)添加时间间隔
+	Date.parts(seconds)        //将秒解析到对应的日期部分 eg:Date.parts(1000)  => {days:0,hours:0,mintues:16,seconds:40}
 	date.clone()
 ```
 
 ###通用属性和方法
 ```
-Q.html
-Q.head
-Q.strict
-Q.quirk
+Q.html           //html元素
+Q.head           //head元素
+Q.strict         //js是否处于严格模式
+Q.quirk          //网页是否按怪异模式渲染
 
 Q.type(obj)
 Q.isFunc(obj)
@@ -75,68 +69,64 @@ Q.isObject(obj)
 Q.isArray(obj)
 Q.isArrayLike(obj)
 Q.def(value, defValue)
-Q.isNum(n, min, max)
-Q.isUNum(n)
-Q.isInt(n, min, max)
-Q.isUInt(n)
-Q.checkNum(str, min, max)
-Q.checkInt(str, min, max)
-Q.toUpper(str, defValue)
+Q.isNum(n, min, max)          //是否为数字,min、max可指定数字范围  eg:Q.isNum(1.2,0) => true
+Q.isUNum(n)                   //是否为大于0的数字
+Q.isInt(n, min, max)          //是否为整数
+Q.isUInt(n)                   //是否为大于0的整数
+Q.checkNum(str, min, max)     //检测字符串是否为数字  eg: Q.checkNum("1.2") => true
+Q.checkInt(str, min, max)     //检测字符串是否为整数
+Q.toUpper(str, defValue)      //将字符串转为大写,若str不是字符串,则返回defValue
 Q.toLower(str, defValue)
 Q.toArray(obj, from)
 Q.makeArray(obj, from)
-Q.arr(length, value, step)
-Q.vals(list, prop, skipUndefined)
+Q.arr(length, value, step)         //按条件产生数组 Q.arr(5,2,2) => [2,4,6,8,10]
+Q.vals(list, prop, skipUndefined)  //根据指定的键或索引抽取数组项的值 eg::Q.vals([{id:1},{id:2}], "id")  =>  [1,2]
 Q.alias(obj, name, aliasName)
 Q.extend(destination, source, forced)
 Q.clone(data)
 Q.toMap(list, fv, ignoreCase)
-Q.toObjectMap(list, propKey, propValue, isBuildIndex)
-Q.sortNumber(list, prop, desc)
+Q.toObjectMap(list, propKey, propValue)
+Q.sortNumber(list, prop, desc)       //将对象数组按数字排序 eg:Q.sortNumber([{id:2},{id:1}], "id")
 Q.sortString(list, prop, desc)
 Q.sortDate(list, prop, desc)
-Q.sortList(list, type, prop, desc)
-Q.proxy(fn, bind)
-Q.fire(fn, bind)
-Q.delay(fn, bind, time, args)
-Q.async(fn, time)
-Q.waitFor(check, callback, timeout, sleep)
+Q.sortList(list, type, prop, desc)  //type:排序类型 0:字符串排序|1:数字排序|2:日期排序
+Q.proxy(fn, bind)                   //返回一个绑定到指定作用域的新函数
+Q.fire(fn, bind)                    //触发指定函数,如果函数不存在,则不触发
+Q.delay(fn, bind, time, args)       //延迟执行,若fn未定义,则忽略
+Q.async(fn, time)                   //异步执行,相当于setTimeout,但会检查fn是否可用
+Q.waitFor(check, callback, timeout, sleep)  //等待达到条件或超时时,执行一个回调函数
 Q.factory(init)
 Q.isIP(ip)
 Q.isMail(str)
 Q.isPhone(str)
 Q.isTel(str)
 Q.isHttpURL(url)
-Q.parseLevel(size, steps, limit)
-Q.formatSize(size, ops)
-Q.isHttpURL(obj)
-Q.isHttpURL(obj)
-Q.isHttpURL(obj)
-Q.isHttpURL(obj)
+Q.parseLevel(size, steps, limit) //按照进制解析数字的层级 eg:时间转化 -> parseLevel(86400,[60,60,24]) => { value=1, level=3 }
+Q.formatSize(size, ops)          //格式化数字输出,将数字转为合适的单位输出,默认按照1024层级转为文件单位输出
 
 Q.ready(fn)
-Q.param(obj)
-Q.join(url)
-Q.parseHash(hash)
-Q.getPageName(path)
+Q.param(obj)            //编码或解码查询字符串
+Q.join(url)             //连接url和查询字符串
+Q.parseHash(hash)       //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
+Q.getPageName(path)     //获取页名称 eg:index.html
 Q.loadJS(urls, callback, ops)
 Q.loadCSS(urls, callback, ops)
-Q.isInputKey(code)
-Q.isSameHost(url)
-Q.clearSelection()
+Q.isInputKey(code)      //是否是输入按键
+Q.isSameHost(url)       //判断指定路径与当前页面是否同域(包括协议检测 eg:http与https不同域)
+Q.clearSelection()      //清除文本选区
 ```
 
 ###队列
 ```
-Q.Queue(ops)
-Q.series(tasks, complete, ops, workerThread)
-Q.parallel(tasks, complete, ops)
+Q.Queue(ops)  //通用队列对象
+Q.series(tasks, complete, ops, workerThread)  //函数排队执行
+Q.parallel(tasks, complete, ops)              //函数并行执行
 Q.ajaxQueue(ops)
 ```
 
 ###浏览器识别
 ```
-var engine=Q.engine;
+var engine = Q.engine;
 engine.ie       =>  8
 engine.ie8      =>  true
 engine.trident  =>  true
@@ -151,14 +141,11 @@ engine.name     =>  "trident"
 ```
 JSON.stringify(obj)
 JSON.parse(text)
-
-JSON.encode(obj)
-JSON.decode(text, secure)
 ```
 
 ###Cookie
 ```
-var cookie=Q.cookie;
+var cookie = Q.cookie;
 cookie.get(key)
 cookie.set(key, value, ops)
 cookie.remove(key)
@@ -171,7 +158,7 @@ Q.Storage(type, useCookie)
 Q.store    //new Q.Storage("localStorage", true)
 Q.session  //new Q.Storage("sessionStorage", true)
 
-var store=new Q.Storage("localStorage", true);
+var store = new Q.Storage("localStorage", true);
 store.support   =>  true|false
 store.adapter   =>  storage|userdata|cookie|null
 
@@ -214,7 +201,7 @@ Q.ajax(url, {
 
 ###事件处理
 ```
-var E=Q.event;
+var E = Q.event;
 E.fix(e)                       //将原生event对象转换为封装的Q.Event对象
 E.stop(e)                      //停止事件默认行为及传递
 E.trigger(e)                   //触发事件
@@ -236,7 +223,7 @@ handle.off();
 
 ###视图大小
 ```
-var view=Q.view;
+var view = Q.view;
 view.getSize()
 view.getWidth()
 view.getHeight()
@@ -283,7 +270,7 @@ Q.query(selector, context)
 Q.matches(els, selector)
 
 //$用法类jquery
-var $el=$(selector,context);
+var $el = $(selector,context);
 $el.length
 
 $el.extend(source, forced)

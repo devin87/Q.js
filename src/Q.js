@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2016/02/17 16:52
+* update:2016/02/17 17:39
 */
 (function (undefined) {
     "use strict";
@@ -105,7 +105,7 @@
 
     //检测是否为大于0的数字
     function isUNum(n) {
-        return n !== 0 && isNum(n, 0);
+        return typeof n == "number" && n > 0;
     }
 
     //检测是否为整数
@@ -319,17 +319,16 @@
 
     //将对象数组转换为键值对
     //propKey:对象中作为键的属性
-    //propValue:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
-    //isBuildIndex:是否给对象添加index属性,值为对象在数组中的索引
-    function toObjectMap(list, propKey, propValue, isBuildIndex) {
+    //propValue:对象中作为值的属性,若为空,则值为对象本身;若为true,则给对象添加index属性,值为对象在数组中的索引
+    function toObjectMap(list, propKey, propValue) {
         if (!list) return;
+
+        var map = {}, isBuildIndex = false;
 
         if (propValue === true) {
             isBuildIndex = propValue;
             propValue = undefined;
         }
-
-        var map = {};
 
         for (var i = 0, len = list.length; i < len; i++) {
             var obj = list[i];
@@ -783,10 +782,9 @@
         },
         //将对象数组转换为键值对
         //propKey:对象中作为键的属性
-        //propValue:对象中作为值的属性,若为空,则值为对象本身;为true时同isBuildIndex
-        //isBuildIndex:是否给对象添加index属性,值为对象在数组中的索引
-        toObjectMap: function (propKey, propValue, isBuildIndex) {
-            return toObjectMap(this, propKey, propValue, isBuildIndex);
+        //propValue:对象中作为值的属性,若为空,则值为对象本身;若为true,则给对象添加index属性,值为对象在数组中的索引
+        toObjectMap: function (propKey, propValue) {
+            return toObjectMap(this, propKey, propValue);
         }
     });
 
@@ -872,7 +870,7 @@
 
             return format;
         },
-        //通过将一个时间间隔与指定 date 的指定 part 相加，返回一个新的 Date 值
+        //按照part(y|M|d|h|m|s|ms)添加时间间隔
         add: function (part, n) {
             var date = this;
             switch (part) {
