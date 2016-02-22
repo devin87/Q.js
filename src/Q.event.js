@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2016/01/14 10:47
+* update:2016/02/22 13:12
 */
 (function (undefined) {
     "use strict";
@@ -73,7 +73,9 @@
         self.originalEvent = e;
 
         self.type = type;
-        self.currentTarget = self.target = target;
+        self.target = target;
+        //一般指向绑定的元素,建议直接在回调函数中使用this或element代替
+        //self.currentTarget = e.currentTarget;
         self.relatedTarget = relatedTarget;
 
         self.rightClick = rightClick;
@@ -138,7 +140,7 @@
 
     //添加DOM事件,未做任何封装
     function addEvent(ele, type, fn) {
-        if (SUPPORT_W3C_EVENT) ele.addEventListener(type, fn, false);
+        if (SUPPORT_W3C_EVENT) ele.addEventListener(type, fn, false);  //第3个参数表示是否使用捕获
         else ele.attachEvent("on" + type, fn);  //注意:fn的this并不指向ele
     }
 
