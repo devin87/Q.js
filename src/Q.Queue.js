@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列
 * author:devin87@qq.com
-* update:2016/02/18 16:30
+* update:2016/03/03 17:54
 */
 (function (undefined) {
     "use strict";
@@ -213,6 +213,8 @@
             };
 
             if (injectCallback != undefined) {
+                if (!data) data = {};
+
                 //避免重复注入
                 var qcallback = data.__qcallback;
                 originalCallback = qcallback || data[injectCallback];
