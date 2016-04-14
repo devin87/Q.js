@@ -4,7 +4,7 @@
 /*
 * Q.event.js 事件处理
 * author:devin87@qq.com  
-* update:2016/02/22 13:12
+* update:2016/04/14 11:38
 */
 (function (undefined) {
     "use strict";
@@ -55,7 +55,6 @@
             type = e.type,
             target = e.target || e.srcElement,
             relatedTarget = e.relatedTarget || (type == "mouseover" ? e.fromElement : e.toElement),
-            rightClick = e.which == 3 || e.button == 2,
 
             clientX = e.clientX,
             clientY = e.clientY,
@@ -78,7 +77,9 @@
         //self.currentTarget = e.currentTarget;
         self.relatedTarget = relatedTarget;
 
-        self.rightClick = rightClick;
+        self.button = e.button;
+        self.which = e.which;
+        self.rightClick = e.which == 3 || e.button == 2;
 
         //Mouse Event
         if (clientX !== undefined) {
