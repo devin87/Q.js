@@ -5350,7 +5350,7 @@
 * Copyright (c) 2010 scott.cgi
 
 * author:devin87@qq.com
-* update:2015/10/08 10:50
+* update:2016/07/26 14:58
 */
 (function (undefined) {
     "use strict";
@@ -5362,6 +5362,9 @@
 
         cssShow = Q.show,
         cssHide = Q.hide;
+
+    var list_prop = ["scrollTop", "scrollLeft"],
+        map_prop = list_prop.toMap(true);
 
     var
 
@@ -5639,7 +5642,7 @@
 		            }
 
 		            step.push({
-		                p: p.replace(/[A-Z]/g, "-$&"),
+		                p: map_prop[p] ? p : p.replace(/[A-Z]/g, "-$&"),
 		                b: b,
 		                c: c,
 		                u: u,
