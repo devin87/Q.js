@@ -4867,7 +4867,7 @@
 ﻿/*
 * Q.$.js DOM操作
 * author:devin87@qq.com  
-* update:2016/01/14 10:48
+* update:2016/07/26 12:23
 */
 (function (undefined) {
     "use strict";
@@ -5062,7 +5062,7 @@
 
         //筛选指定索引的元素
         eq: function (i) {
-            return new SimpleQuery([this.get(i)]);
+            return new SimpleQuery(this.get(i));
         },
         //筛选第一个元素
         first: function () {
