@@ -1552,7 +1552,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2016/02/17 17:12
+* update:2016/08/01 14:49
 */
 (function (undefined) {
     "use strict";
@@ -1675,11 +1675,14 @@
     }
 
     //获取页名称
-    function get_page_name(path) {
+    //keepQueryHash:是否保留查询字符串和Hash字符串
+    function get_page_name(path, keepQueryHash) {
         var pathname = (path || location.pathname).toLowerCase().replace(/\\/g, "/"),
-            start = pathname.lastIndexOf("/") + 1,
-            end = pathname.indexOf("?", start);
+            start = pathname.lastIndexOf("/") + 1;
 
+        if (keepQueryHash) return pathname.slice(start);
+
+        var end = pathname.indexOf("?", start);
         if (end == -1) end = pathname.indexOf("#", start);
 
         return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
