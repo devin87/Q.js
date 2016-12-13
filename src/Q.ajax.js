@@ -2,15 +2,17 @@
 /*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2016/02/18 16:10
+* update:2016/12/13 15:40
 */
 (function (undefined) {
     "use strict";
 
     var window = Q.G,
 
+        isObject = Q.isObject,
         isFunc = Q.isFunc,
         isUInt = Q.isUInt,
+        isSameHost = Q.isSameHost,
 
         def = Q.def,
         extend = Q.extend,
@@ -62,18 +64,24 @@
     }
 
     //格式化ajax设置
-    function ajax_option(ops, success, error) {
+    function ajax_option(url, ops) {
         ops = ops || {};
 
         var get_value = function (prop) {
             return def(ops[prop], global_ajax_settings[prop]);
         };
 
-        var data_type = toLower(get_value("dataType") || "html"),
-            timeout = get_value("timeout"),
-            is_ajax = toLower(ops.dataType) != "jsonp";
+        var data_type = toLower(get_value("dataType") || "html");
+
+        if (!isSameHost(url) && get_value("autoJSONP") !== false) data_type = "jsonp";
+
+        var timeout = get_value("timeout"),
+            cache = get_value("cache"),
+            is_ajax = data_type != "jsonp";
 
         return {
+            url: url,
+
             type: is_ajax ? (get_value("type") || HTTP_METHOD_GET).toUpperCase() : HTTP_METHOD_GET,
             data: get_value("data"),
             dataType: data_type,
@@ -86,13 +94,13 @@
             charset: toLower(get_value("charset") || "utf-8"),
 
             async: get_value("async") !== false,
-            cache: get_value("cache") !== false,
+            cache: is_ajax ? cache !== false : !!cache,
 
             timeout: isUInt(timeout) ? Math.round(timeout) : undefined,
 
             beforeSend: get_value("beforeSend"),
-            success: success || get_value("success"),
-            error: error || get_value("error"),
+            success: get_value("success"),
+            error: get_value("error"),
             complete: get_value("complete"),
 
             headers: is_ajax ? extend(get_value("headers") || {}, {
@@ -112,9 +120,8 @@
         //jsonp
         head = Q.head,
         opera = window.opera,
-        oldIE = browser_ie < 9,
-        jsonpCount = 0,
-        jsonpCache;
+        jsonp_count = 0,
+        jsonp_cache;
 
     //创建script元素
     function createScript(text) {
@@ -127,7 +134,7 @@
 
     //jsonp回调函数
     function jsonpCallback(data) {
-        jsonpCache = [data];
+        jsonp_cache = [data];
     }
 
     //处理jsonp请求
@@ -141,7 +148,7 @@
             jsonp_param_key = ops.jsonp,
             jsonp_param_value = ops.jsonpCallback,
 
-            scriptId = jsonpCallback + (++jsonpCount),
+            script_id = jsonp_param_value + (++jsonp_count),
             script_for_error,
 
             timer;
@@ -175,17 +182,17 @@
 
         //opera11-不支持script的onerror事件
         if (opera && opera.version() < 11.6) {
-            script.id = scriptId;
-            script_for_error = createScript('document.getElementById("' + scriptId + '").onerror();');
+            script.id = script_id;
+            script_for_error = createScript('document.getElementById("' + script_id + '").onerror();');
         } else if (ops.async) {
             script.async = "async";
         }
 
         //ie6-8不支持script的onerror事件,trick
         //用htmlFor和event属性来保证在readyState == loaded || readyState == complete时，script中的代码已经执行
-        if (oldIE) {
-            script.id = scriptId;
-            script.htmlFor = scriptId;
+        if (browser_ie < 9) {
+            script.id = script_id;
+            script.htmlFor = script_id;
             script.event = "onclick";
         }
 
@@ -195,8 +202,8 @@
             //手动触发script标签的onclick事件，来保证script中的内容得以执行(ie6-8)
             try { script.onclick && script.onclick(); } catch (e) { }
 
-            var result = jsonpCache;
-            jsonpCache = 0;
+            var result = jsonp_cache;
+            jsonp_cache = 0;
 
             result ? process_success(result[0]) : process_error(AJAX_STATE_FAILURE);
         };
@@ -221,8 +228,7 @@
         if (isFunc(ops)) ops = { success: ops };
 
         //配置处理
-        ops = ajax_option(ops);
-        ops.url = url;
+        ops = ajax_option(url, ops);
 
         //队列接口
         if (ops.queue) return ops.queue.add(url, ops);
@@ -386,14 +392,22 @@
     }
 
     //简化ajax调用
-    function ajax_simple_send(url, data, success, error, ops) {
+    function ajax_simple_send(url, data, success, error, settings) {
+        var ops;
+
         if (isFunc(data)) {
-            error = success;
-            success = data;
-            data = undefined;
+            ops = { success: data, error: success };
+        } else if (isObject(success)) {
+            ops = success;
+            ops.data = data;
+        } else {
+            ops = { data: data, success: success, error: error };
         }
 
-        return ajax_send(url, extend({ data: data, success: success, error: error }, ops));
+        //优先设置
+        if (settings) extend(ops, settings, true);
+
+        return ajax_send(url, ops);
     }
 
     var Ajax = {
