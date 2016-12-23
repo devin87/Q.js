@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2016/12/13 15:48
+* update:2016/12/23 15:25
 */
 (function (undefined) {
     "use strict";
@@ -18,7 +18,6 @@
         extend = Q.extend,
 
         fire = Q.fire,
-        async = Q.async,
 
         waitFor = Q.waitFor;
 
@@ -659,7 +658,7 @@
 
     //确保 document.body 已就绪
     if (document.body) init();
-    else async(init, 0);
+    else waitFor(function () { return document.body; }, init);
 
     //暴露接口
     window.request = parse_url_params(location.search);
