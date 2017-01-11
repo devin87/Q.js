@@ -1,8 +1,8 @@
-﻿/// <reference path="Q.js" />
+﻿/// <reference path="Q.$.js" />
 /*
 * Q.setTimer.js 计时器
 * author:devin87@qq.com
-* update:2015/06/11 09:50
+* update:2016/12/26 09:56
 */
 (function (undefined) {
     "use strict";
@@ -12,6 +12,7 @@
     //---------------------- 计时器 ----------------------
 
     //计时器
+    //ops: { box:".uptime",time:1566, pad:true, step:1, sleep:1000, join:"",units:["天", "时", "分", "秒"],process:function(total, text, days, hours, mintues, seconds){} }
     function setTimer(ops) {
         var box = ops.box,
             process = ops.process,
@@ -48,7 +49,7 @@
                 result = fire(process, undefined, total, text, days, hours, mintues, seconds);
 
             if (result !== false) {
-                if (box) box.innerHTML = typeof result == "string" ? result : text;
+                $(box).html(typeof result == "string" ? result : text);
                 timer = setTimeout(update, sleep);
             }
         };

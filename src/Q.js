@@ -1093,8 +1093,8 @@
         }
 
         if (level && size < stepNow) {
-            stepNow /= (isNum ? steps : steps.last());
             level--;
+            stepNow /= (isNum ? steps : steps[level]);
         }
 
         return { value: level ? size / stepNow : size, level: level };
