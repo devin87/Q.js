@@ -2,7 +2,7 @@
 /*
 * Q.setTimer.js 计时器
 * author:devin87@qq.com
-* update:2016/12/26 09:56
+* update:2017/02/09 11:53
 */
 (function (undefined) {
     "use strict";
@@ -38,6 +38,8 @@
         var update = function () {
             total += step;
             if (total < 0) return;
+
+            if (timer) clearTimeout(timer);
 
             var t = Date.parts(total),
                 days = t.days,
