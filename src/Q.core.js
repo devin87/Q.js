@@ -110,6 +110,8 @@
     //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
     function parse_url_hash(hash) {
         if (!hash) hash = location.hash;
+        //可能对后续处理造成影响,比如 param 中有/等转码字符
+        //if(hash) hash = decode_url_param(hash);
 
         var nav = hash, param;
 

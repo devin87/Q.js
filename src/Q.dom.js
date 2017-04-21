@@ -651,11 +651,12 @@
     //---------------------- 其它 ----------------------
 
     //将输入框样式设为错误模式
-    function setInputError(input, hasBorder) {
+    //value:重置后输入框的值,默认为空字符串
+    function setInputError(input, hasBorder, value) {
         if (hasBorder) input.style.borderColor = "red";
         else input.style.border = "1px solid red";
 
-        input.value = "";
+        input.value = value || "";
         input.focus();
     }
 

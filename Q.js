@@ -1659,6 +1659,8 @@
     //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
     function parse_url_hash(hash) {
         if (!hash) hash = location.hash;
+        //可能对后续处理造成影响,比如 param 中有/等转码字符
+        //if(hash) hash = decode_url_param(hash);
 
         var nav = hash, param;
 
@@ -3952,11 +3954,12 @@
     //---------------------- 其它 ----------------------
 
     //将输入框样式设为错误模式
-    function setInputError(input, hasBorder) {
+    //value:重置后输入框的值,默认为空字符串
+    function setInputError(input, hasBorder, value) {
         if (hasBorder) input.style.borderColor = "red";
         else input.style.border = "1px solid red";
 
-        input.value = "";
+        input.value = value || "";
         input.focus();
     }
 
