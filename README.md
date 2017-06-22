@@ -1,62 +1,62 @@
 # Q.js
 js工具库，包括 原生对象扩展、通用方法、队列、JSON、Cookie、Storage、Ajax、JSONP、事件处理、DOM操作、动画等
 
-###原生对象扩展（优先使用浏览器原生实现）
+### 原生对象扩展（优先使用浏览器原生实现）
 ```
 Object:
-	Object.create(obj)
-	Object.forEach(obj, fn, bind)
-	Object.keys(obj)
-	Object.values(obj)
-	Object.size(obj)
-	Object.hasItem(obj)
-	
+  Object.create(obj)
+  Object.forEach(obj, fn, bind)
+  Object.keys(obj)
+  Object.values(obj)
+  Object.size(obj)
+  Object.hasItem(obj)
+  
 String:
-	str.trim()
-	str.repeat(n)
-	str.startsWith(str, index)
-	str.endsWith(str, index)
-	str.contains(str, index)
-	str.drop(pattern, flags)
-	str.reverse()
-	str.htmlEncode()
-	str.htmlDecode()
-	
+  str.trim()
+  str.repeat(n)
+  str.startsWith(str, index)
+  str.endsWith(str, index)
+  str.contains(str, index)
+  str.drop(pattern, flags)
+  str.reverse()
+  str.htmlEncode()
+  str.htmlDecode()
+  
 Number:
-	n.format(length, radix)
-	
+  n.format(length, radix)
+  
 Array:
-	Array.forEach(list, fn, bind)
-	Array.isArray(obj)
-	
-	arr.forEach(fn, bind)
-	arr.map(fn, bind)
-	arr.indexOf(item, index)
-	arr.lastIndexOf(item, index)
-	arr.filter(fn, bind)
-	arr.every(fn, bind)
-	arr.some(fn, bind)
-	arr.contains(item, index)
-	arr.get(index)
-	arr.first()
-	arr.last()
-	arr.del(index, n)
-	arr.unique(prop)
-	arr.clean()
-	arr.items(prop, skipUndefined)       //[{id:1,name:"aa"},{id:2,name:"bb"}].items("id")  => [1,2]
-	arr.toMap(value, ignoreCase)         //["a","b"].toMap(true)  => {a:true,b:true}
-	arr.toObjectMap(propKey, propValue)  //[{id:1,name:"aa"},{id:2,name:"bb"}].toObjectMap("id","name") => {1:"aa",2:"bb"}
-	
+  Array.forEach(list, fn, bind)
+  Array.isArray(obj)
+  
+  arr.forEach(fn, bind)
+  arr.map(fn, bind)
+  arr.indexOf(item, index)
+  arr.lastIndexOf(item, index)
+  arr.filter(fn, bind)
+  arr.every(fn, bind)
+  arr.some(fn, bind)
+  arr.contains(item, index)
+  arr.get(index)
+  arr.first()
+  arr.last()
+  arr.del(index, n)
+  arr.unique(prop)
+  arr.clean()
+  arr.items(prop, skipUndefined)       //[{id:1,name:"aa"},{id:2,name:"bb"}].items("id")  => [1,2]
+  arr.toMap(value, ignoreCase)         //["a","b"].toMap(true)  => {a:true,b:true}
+  arr.toObjectMap(propKey, propValue)  //[{id:1,name:"aa"},{id:2,name:"bb"}].toObjectMap("id","name") => {1:"aa",2:"bb"}
+  
 Date:
-	Date.now()
-	Date.from(str)             //Date.from("2015年6月17日")
-	date.format(format, ops)   //格式化日期显示 eg:new Date().format("yyyy/MM/dd hh:mm:ss");
-	date.add(part, n)          //按照part(y|M|d|h|m|s|ms)添加时间间隔
-	Date.parts(seconds)        //将秒解析到对应的日期部分 eg:Date.parts(1000)  => {days:0,hours:0,mintues:16,seconds:40}
-	date.clone()
+  Date.now()
+  Date.from(str)             //Date.from("2015年6月17日")
+  date.format(format, ops)   //格式化日期显示 eg:new Date().format("yyyy/MM/dd hh:mm:ss");
+  date.add(part, n)          //按照part(y|M|d|h|m|s|ms)添加时间间隔
+  Date.parts(seconds)        //将秒解析到对应的日期部分 eg:Date.parts(1000)  => {days:0,hours:0,mintues:16,seconds:40}
+  date.clone()
 ```
 
-###通用属性和方法
+### 通用属性和方法
 ```
 Q.html           //html元素
 Q.head           //head元素
@@ -116,7 +116,7 @@ Q.isSameHost(url)       //判断指定路径与当前页面是否同域(包括�
 Q.clearSelection()      //清除文本选区
 ```
 
-###队列
+### 队列
 ```
 Q.Queue(ops)  //通用队列对象
 Q.series(tasks, complete, ops, workerThread)  //函数排队执行
@@ -124,7 +124,7 @@ Q.parallel(tasks, complete, ops)              //函数并行执行
 Q.ajaxQueue(ops)
 ```
 
-###浏览器识别
+### 浏览器识别
 ```
 var engine = Q.engine;
 engine.ie       =>  8
@@ -137,13 +137,13 @@ engine.name     =>  "trident"
 
 ```
 
-###JSON
+### JSON
 ```
 JSON.stringify(obj)
 JSON.parse(text)
 ```
 
-###Cookie
+### Cookie
 ```
 var cookie = Q.cookie;
 cookie.get(key)
@@ -152,7 +152,7 @@ cookie.remove(key)
 cookie.clear()
 ```
 
-###Storage
+### Storage
 ```
 Q.Storage(type, useCookie)
 Q.store    //new Q.Storage("localStorage", true)
@@ -168,7 +168,7 @@ store.remove(key)
 store.clear()
 ```
 
-###Ajax&JSONP
+### Ajax&JSONP
 ```
 Q.getXHR()
 Q.ajaxSetup(ops)
@@ -199,7 +199,7 @@ Q.ajax(url, {
 });
 ```
 
-###事件处理
+### 事件处理
 ```
 var E = Q.event;
 E.fix(e)                       //将原生event对象转换为封装的Q.Event对象
@@ -214,14 +214,14 @@ E.one(elements, types, selector, handle)
 
 //code
 var handle=E.add(document,"click",function(e){
-	
+  
 });
 
 //E.add会返回一个操作对象,调用off方法可取消事件绑定
 handle.off();
 ```
 
-###视图大小
+### 视图大小
 ```
 var view = Q.view;
 view.getSize()
@@ -233,7 +233,7 @@ view.getScrollLeft()
 view.getScrollTop()
 ```
 
-###DOM操作
+### DOM操作
 ```
 Q.camelCase(key)
 Q.getStyle(ele, key)
