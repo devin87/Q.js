@@ -1695,7 +1695,7 @@
 /*
 * Q.http.js http请求
 * author:devin87@qq.com
-* update:2017/07/24 14:27
+* update:2017/07/24 17:10
 */
 (function () {
     var URL = require('url'),
@@ -1705,7 +1705,8 @@
 
         extend = Q.extend,
         fire = Q.fire,
-        isFunc = Q.isFunc;
+        isFunc = Q.isFunc,
+        isObject = Q.isObject;
 
     var ErrorCode = {
         HttpError: 1,
