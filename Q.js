@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/06/22 14:26
+* update:2017/07/12 11:56
 */
 (function (undefined) {
     "use strict";
@@ -120,12 +120,12 @@
 
     //判断字符串是否是符合条件的数字
     function checkNum(str, min, max) {
-        return !isNaN(str) && isNum(+str, min, max);
+        return str != null && str != "" && !isNaN(str) && isNum(+str, min, max);
     }
 
     //判断字符串是否是符合条件的整数
     function checkInt(str, min, max) {
-        return !isNaN(str) && isInt(+str, min, max);
+        return str != null && str != "" && !isNaN(str) && isInt(+str, min, max);
     }
 
     //将字符串转为大写,若str不是字符串,则返回defValue
@@ -1040,6 +1040,7 @@
     var RE_MAIL = /^[\w\.-]+@[\w-]+(\.[\w-]+)*\.[\w-]+$/,           //验证邮箱
         RE_PHONE = /^(1\d{10}|(\d{3,4}-?)?\d{7,8}(-\d{1,4})?)$/,    //验证电话号码(手机号码、带区号或不带区号、带分机号或不带分机号)
         RE_TEL = /^1\d{10}$/,                                       //验证手机号码
+        RE_MAC = /[a-fA-F0-9]{2}([:-][a-fA-F0-9]{2}){5}/,           //验证MAC地址
         RE_HTTP = /^https?:\/\//i;
 
     //判断字符串是否符合IPv4格式
@@ -1068,6 +1069,11 @@
     //是否符合手机号码格式 18688889999
     function isTel(str) {
         return RE_TEL.test(str);
+    }
+
+    //是否符合MAC地址格式 00:11:22:33:44:ff
+    function isMAC(str) {
+        return RE_MAC.test(str);
     }
 
     //是否http路径(以 http:// 或 https:// 开头)
@@ -1122,6 +1128,133 @@
         pl.text = text + (ops.join || "") + (ops.units || UNITS_FILE_SIZE)[pl.level + (ops.start || 0)];
 
         return ops.all ? pl : pl.text;
+    }
+
+    //编码url参数
+    var encode_url_param = encodeURIComponent;
+
+    //解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
+    function decode_url_param(param) {
+        try {
+            return decodeURIComponent(param);
+        } catch (e) {
+            return param;
+        }
+    }
+
+    //将对象转为查询字符串
+    function to_param_str(obj) {
+        if (!obj) return "";
+        if (typeof obj == "string") return obj;
+
+        var tmp = [];
+
+        Object.forEach(obj, function (k, v) {
+            if (typeof v != "function") tmp.push(encode_url_param(k) + "=" + (v != undefined ? encode_url_param(v) : ""));
+        });
+
+        return tmp.join("&");
+    }
+
+    //连接url和查询字符串(支持传入对象)
+    function join_url(url) {
+        var params = [], args = arguments;
+        for (var i = 1, len = args.length; i < len; i++) {
+            var param = args[i];
+            if (param) params.push(to_param_str(param));
+        }
+
+        var index = url.indexOf("#"), hash = "";
+        if (index != -1) {
+            hash = url.slice(index);
+            url = url.slice(0, index);
+        }
+
+        var str_params = params.join("&");
+        if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;
+
+        return url + hash;
+    }
+
+    //解析url参数 eg:url?id=1
+    function parse_url_params(search) {
+        if (!search) return {};
+
+        if (search.charAt(0) == "?") search = search.slice(1);
+        if (!search) return {};
+
+        var list = search.split("&"), map = {};
+
+        for (var i = 0, len = list.length; i < len; i++) {
+            //跳过空字符串
+            if (!list[i]) continue;
+
+            var kv = list[i].split("="),
+                key = kv[0],
+                value = kv[1];
+
+            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
+        }
+
+        return map;
+    }
+
+    //编码或解码查询字符串
+    function process_url_param(obj) {
+        if (obj == undefined) return;
+
+        return typeof obj == "string" ? parse_url_params(obj) : to_param_str(obj);
+    }
+
+    var DEF_LOC = GLOBAL.location || { protocol: "", hash: "", pathname: "" };
+
+    //解析URL路径 => {href,protocol,host,hostname,port,pathname,search,hash}
+    function parse_url(url) {
+        //return new URL(url);
+
+        var m = url.match(/(^[^:]*:)?\/\/([^:]+)(:\d+)?(\/[^?]+)?(\?[^#]*)?(#.*)?$/),
+            protocol = m[1] || DEF_LOC.protocol,
+            hostname = m[2],
+            port = (m[3] || "").slice(1),
+            host = hostname + ":" + port,
+            pathname = m[4] || "/",
+            search = m[5] || "",
+            hash = m[6] || "";
+
+        return { href: protocol + "//" + host + pathname + search + hash, protocol: protocol, host: host, hostname: hostname, port: port, pathname: pathname, search: search, hash: hash };
+    }
+
+    //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
+    function parse_url_hash(hash) {
+        if (!hash) hash = DEF_LOC.hash;
+        //可能对后续处理造成影响,比如 param 中有/等转码字符
+        //if(hash) hash = decode_url_param(hash);
+
+        var nav = hash, param;
+
+        if (hash) {
+            var index = hash.indexOf("!/");
+            if (index != -1) {
+                nav = hash.slice(0, index);
+                param = hash.slice(index + 2);
+            }
+        }
+
+        return { nav: nav, param: param };
+    }
+
+    //获取页名称
+    //keepQueryHash:是否保留查询字符串和Hash字符串
+    function get_page_name(path, keepQueryHash) {
+        var pathname = (path || DEF_LOC.pathname).replace(/\\/g, "/"),
+            start = pathname.lastIndexOf("/") + 1;
+
+        if (keepQueryHash) return pathname.slice(start);
+
+        var end = pathname.indexOf("?", start);
+        if (end == -1) end = pathname.indexOf("#", start);
+
+        return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
     }
 
     //---------------------- export ----------------------
@@ -1180,10 +1313,20 @@
         isMail: isMail,
         isPhone: isPhone,
         isTel: isTel,
+        isMAC: isMAC,
         isHttpURL: isHttpURL,
 
         parseLevel: parseLevel,
         formatSize: formatSize,
+
+        parseUrlParams: parse_url_params,
+        joinUrlParams: to_param_str,
+        param: process_url_param,
+        join: join_url,
+
+        parseUrl: parse_url,
+        parseHash: parse_url_hash,
+        getPageName: get_page_name,
 
         Listener: Listener
     };
@@ -1197,7 +1340,7 @@
 })();
 
 ﻿/*
-* Q.Queue.js 队列
+* Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
 * update:2016/03/03 17:54
 */
@@ -1552,7 +1695,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2016/12/23 15:25
+* update:2017/07/12 11:57
 */
 (function (undefined) {
     "use strict";
@@ -1580,114 +1723,6 @@
 
         body,
         root;
-
-    var encode_url_param = encodeURIComponent;
-
-    //解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
-    function decode_url_param(param) {
-        try {
-            return decodeURIComponent(param);
-        } catch (e) {
-            return param;
-        }
-    }
-
-    //将对象转为查询字符串
-    function to_param_str(obj) {
-        if (!obj) return "";
-        if (typeof obj == "string") return obj;
-
-        var tmp = [];
-
-        Object.forEach(obj, function (k, v) {
-            if (typeof v != "function") tmp.push(encode_url_param(k) + "=" + (v != undefined ? encode_url_param(v) : ""));
-        });
-
-        return tmp.join("&");
-    }
-
-    //连接url和查询字符串
-    function join_url(url) {
-        var params = [], args = arguments;
-        for (var i = 1, len = args.length; i < len; i++) {
-            var param = args[i];
-            if (param) params.push(to_param_str(param));
-        }
-
-        var index = url.indexOf("#"), hash = "";
-        if (index != -1) {
-            hash = url.slice(index);
-            url = url.slice(0, index);
-        }
-
-        var str_params = params.join("&");
-        if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;
-
-        return url + hash;
-    }
-
-    //解析url参数 eg:url?id=1
-    function parse_url_params(search) {
-        if (!search) return {};
-
-        if (search.charAt(0) == "?") search = search.slice(1);
-        if (!search) return {};
-
-        var list = search.split("&"), map = {};
-
-        for (var i = 0, len = list.length; i < len; i++) {
-            //跳过空字符串
-            if (!list[i]) continue;
-
-            var kv = list[i].split("="),
-                key = kv[0],
-                value = kv[1];
-
-            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
-        }
-
-        return map;
-    }
-
-    //编码或解码查询字符串
-    function process_url_param(obj) {
-        if (obj == undefined) return;
-
-        return typeof obj == "string" ? parse_url_params(obj) : to_param_str(obj);
-    }
-
-    //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
-    function parse_url_hash(hash) {
-        if (!hash) hash = location.hash;
-        //可能对后续处理造成影响,比如 param 中有/等转码字符
-        //if(hash) hash = decode_url_param(hash);
-
-        var nav = hash, param;
-
-        if (hash) {
-            var index = hash.indexOf("!/");
-            if (index != -1) {
-                nav = hash.slice(0, index);
-                param = hash.slice(index + 2);
-            }
-        }
-
-        return { nav: nav, param: param };
-    }
-
-    //获取页名称
-    //keepQueryHash:是否保留查询字符串和Hash字符串
-    function get_page_name(path, keepQueryHash) {
-        var pathname = (path || location.pathname).replace(/\\/g, "/"),
-            start = pathname.lastIndexOf("/") + 1;
-
-        if (keepQueryHash) return pathname.slice(start);
-
-        var end = pathname.indexOf("?", start);
-        if (end == -1) end = pathname.indexOf("#", start);
-
-        return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
-    }
 
     var map_loaded_resource = {},
         GUID_RESOURCE = Date.now(),
@@ -2177,12 +2212,6 @@
 
         ready: ready,
 
-        param: process_url_param,
-        join: join_url,
-
-        parseHash: parse_url_hash,
-        getPageName: get_page_name,
-
         loadJS: loadJS,
         loadCSS: loadCSS,
 
@@ -2212,7 +2241,7 @@
     else waitFor(function () { return document.body; }, init);
 
     //暴露接口
-    window.request = parse_url_params(location.search);
+    window.request = Q.parseUrlParams(location.search);
 
 })();
 

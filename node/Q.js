@@ -1338,3 +1338,561 @@
     }
 
 })();
+
+﻿/*
+* Q.Queue.js 队列 for browser or Node.js
+* author:devin87@qq.com
+* update:2016/03/03 17:54
+*/
+(function (undefined) {
+    "use strict";
+
+    var delay = Q.delay,
+        extend = Q.extend,
+        fire = Q.fire,
+
+        isFunc = Q.isFunc,
+        isObject = Q.isObject,
+        isArrayLike = Q.isArrayLike,
+        isUInt = Q.isUInt,
+
+        getType = Q.type,
+        makeArray = Q.makeArray,
+        factory = Q.factory,
+
+        Listener = Q.Listener;
+
+    var QUEUE_TASK_TIMEDOUT = -1,    //任务已超时
+        QUEUE_TASK_READY = 0,        //任务已就绪，准备执行
+        QUEUE_TASK_PROCESSING = 1,   //任务执行中
+        QUEUE_TASK_OK = 2,           //任务已完成
+
+        //自定义事件
+        LIST_CUSTOM_EVENT = ["add", "start", "end", "stop", "complete"];
+
+    //异步队列
+    function Queue(ops) {
+        ops = ops || {};
+
+        var self = this,
+            tasks = ops.tasks;
+
+        //队列自定义事件
+        self._listener = new Listener(LIST_CUSTOM_EVENT, self);
+
+        self.auto = ops.auto !== false;
+        self.workerThread = ops.workerThread || 1;
+        self.timeout = ops.timeout;
+
+        if (ops.rtype == "auto") self.rtype = getType(tasks);
+
+        LIST_CUSTOM_EVENT.forEach(function (type) {
+            var fn = ops[type];
+            if (fn) self.on(type, fn);
+        });
+
+        if (ops.inject) self.inject = ops.inject;
+        if (ops.process) self.process = ops.process;
+        if (ops.processResult) self.processResult = ops.processResult;
+
+        self.ops = ops;
+
+        self.reset();
+
+        self.addList(tasks);
+    }
+
+    factory(Queue).extend({
+        //添加自定义事件
+        on: function (type, fn) {
+            this._listener.add(type, fn);
+            return this;
+        },
+        //触发自定义事件
+        trigger: function (type, args) {
+            this._listener.trigger(type, args);
+            return this;
+        },
+
+        //重置队列
+        reset: function () {
+            var self = this;
+
+            self.tasks = [];
+            self.index = 0;
+
+            self.workerIdle = self.workerThread;
+
+            return self;
+        },
+
+        //添加任务
+        _add: function (args, key, auto) {
+            var self = this;
+
+            var task = { args: makeArray(args), state: QUEUE_TASK_READY };
+            if (key != undefined) task.key = key;
+
+            self.tasks.push(task);
+
+            self.trigger("add", task);
+
+            if (auto) self.start();
+
+            return self;
+        },
+
+        //添加任务
+        add: function () {
+            return this._add(arguments, undefined, this.auto);
+        },
+
+        //批量添加任务
+        addList: function (tasks) {
+            var self = this;
+            if (!tasks) return self;
+
+            if (isArrayLike(tasks)) {
+                Array.forEach(tasks, function (v, i) {
+                    self._add(v, i, false);
+                });
+            } else {
+                Object.forEach(tasks, function (k, v) {
+                    self._add(v, k, false);
+                });
+            }
+
+            if (self.auto) self.start();
+
+            return self;
+        },
+
+        //返回队列长度,可指定任务状态
+        size: function (state) {
+            return state != undefined ? this.tasks.filter(function (task) { return task.state == state; }).length : this.tasks.length;
+        },
+
+        //运行队列
+        _run: function () {
+            var self = this;
+
+            if (self.stoped || self.workerIdle <= 0 || self.index >= self.tasks.length) return self;
+
+            var task = self.tasks[self.index++],
+                timeout = self.timeout;
+
+            self.workerIdle--;
+
+            self.trigger("start", task);
+
+            //跳过任务
+            if (task.state != QUEUE_TASK_READY) return self.ok(task);
+
+            task.state = QUEUE_TASK_PROCESSING;
+
+            //超时检测
+            if (isUInt(timeout)) task._timer = delay(self.ok, self, timeout, [task, QUEUE_TASK_TIMEDOUT]);
+
+            //处理任务
+            self.process(task, function () {
+                self.ok(task, QUEUE_TASK_OK);
+            });
+
+            return self.workerIdle ? self._run() : self;
+        },
+
+        //启动队列,默认延迟10ms
+        start: function () {
+            var self = this;
+            self.stoped = false;
+            if (!self.auto) self.auto = true;
+
+            delay(self._run, self, 10);
+
+            return self;
+        },
+
+        //暂停队列,可以调用start方法重新启动队列
+        //time:可选,暂停的毫秒数
+        stop: function (time) {
+            var self = this;
+            self.stoped = true;
+
+            if (isUInt(time)) delay(self.start, self, time);
+
+            return self;
+        },
+
+        //回调函数注入(支持2级注入)
+        inject: function (task, callback) {
+            var self = this,
+                ops = self.ops,
+
+                injectIndex = ops.injectIndex || 0,     //执行函数中回调函数所在参数索引
+                injectCallback = ops.injectCallback,    //如果该参数是一个对象,需指定参数名称,可选
+
+                args = task.args.slice(0);
+
+            //自执行函数
+            if (!ops.exec && isFunc(args[0])) injectIndex++;
+
+            //task.args 克隆,避免对原数据的影响
+            var data = args[injectIndex],
+                originalCallback;
+
+            //注入回调函数
+            var inject = function (result) {
+                //注入结果仅取第一个返回值,有多个结果的请使用数组或对象传递
+                task.result = result;
+
+                //执行原回调函数(如果有)
+                if (isFunc(originalCallback)) originalCallback.apply(this, arguments);
+
+                //触发任务完成回调,并执行下一个任务 
+                callback();
+            };
+
+            if (injectCallback != undefined) {
+                if (!data) data = {};
+
+                //避免重复注入
+                var qcallback = data.__qcallback;
+                originalCallback = qcallback || data[injectCallback];
+                if (!qcallback && originalCallback) data.__qcallback = originalCallback;
+
+                data[injectCallback] = inject;
+                args[injectIndex] = data;
+            } else {
+                originalCallback = data;
+
+                args[injectIndex] = inject;
+            }
+
+            return args;
+        },
+
+        //处理队列任务
+        process: function (task, callback) {
+            var self = this,
+                ops = self.ops,
+
+                exec = ops.exec,    //执行函数
+                bind = ops.bind,    //执行函数绑定的上下文,可选
+
+                args = self.inject(task, callback),
+                fn = args[0];
+
+            if (fn instanceof Queue) fn.start();
+            else if (exec) exec.apply(bind, args);
+            else fn.apply(bind, args.slice(1));
+        },
+
+        //队列完成时,任务结果处理,用于complete事件参数
+        processResult: function (tasks) {
+            switch (this.rtype) {
+                case "array":
+                case "list":
+                case "arguments":
+                    return tasks.items("result");
+
+                case "object": return tasks.toObjectMap("key", "result");
+            }
+
+            return [tasks];
+        },
+
+        //所有任务是否已完成
+        isCompleted: function (tasks) {
+            return (tasks || this.tasks).every(function (task) {
+                return task.state == QUEUE_TASK_OK || task.state == QUEUE_TASK_TIMEDOUT;
+            });
+        },
+
+        //设置任务执行状态为完成并开始新的任务
+        ok: function (task, state) {
+            var self = this;
+            if (task.state != QUEUE_TASK_PROCESSING) return self._run();
+
+            if (++self.workerIdle > self.workerThread) self.workerIdle = self.workerThread;
+
+            if (task._timer) clearTimeout(task._timer);
+
+            if (state != undefined) task.state = state;
+
+            //触发任务完成事件
+            self.trigger("end", task);
+
+            if (self.stoped) {
+                //任务已停止且完成时触发任务停止事件
+                if (self.isCompleted(self.tasks.slice(0, self.index))) self.trigger("stop", self.processResult(self.tasks));
+            } else {
+                //当前队列任务已完成
+                if (self.isCompleted()) {
+                    self.trigger("complete", self.processResult(self.tasks));
+
+                    //队列完成事件,此为提供注入接口
+                    fire(self.complete, self);
+                }
+            }
+
+            return self._run();
+        }
+    });
+
+    //队列任务状态
+    Queue.TASK = {
+        TIMEDOUT: QUEUE_TASK_TIMEDOUT,
+        READY: QUEUE_TASK_READY,
+        PROCESSING: QUEUE_TASK_PROCESSING,
+        OK: QUEUE_TASK_OK
+    };
+
+    //函数排队执行
+    function series(tasks, complete, ops, workerThread) {
+        if (isObject(complete)) {
+            ops = complete;
+            complete = undefined;
+        }
+
+        return new Queue(extend(ops || {}, {
+            rtype: "auto",
+            workerThread: workerThread,
+
+            tasks: tasks,
+            complete: complete
+        }));
+    }
+
+    //函数并行执行
+    function parallel(tasks, complete, ops) {
+        return series(tasks, complete, ops, isArrayLike(tasks) ? tasks.length : Object.size(tasks));
+    }
+
+    //ajax队列
+    function ajaxQueue(ops) {
+        ops = ops || {};
+
+        return new Queue(extend(ops, {
+            exec: ops.ajax || Q.ajax || $.ajax,
+            injectIndex: 1,
+            injectCallback: "complete"
+        }));
+    }
+
+    //------------------------- export -------------------------
+
+    extend(Q, {
+        Queue: Queue,
+
+        series: series,
+        parallel: parallel,
+
+        ajaxQueue: ajaxQueue
+    });
+
+})();
+
+/*
+* Q.http.js http请求
+* author:devin87@qq.com
+* update:2017/07/24 14:27
+*/
+(function () {
+    var URL = require('url'),
+        querystring = require('querystring'),
+        http = require('http'),
+        https = require('https'),
+
+        extend = Q.extend,
+        fire = Q.fire,
+        isFunc = Q.isFunc;
+
+    var ErrorCode = {
+        HttpError: 1,
+        JSONError: 2,
+        Timedout: 3
+    };
+
+    var config = {
+        timeout: 10000
+    };
+
+    /**
+     * http设置
+     * @param {object} settings {ErrorCode:{},config:{}}
+     */
+    function setup(settings) {
+        if (settings.ErrorCode) extend(ErrorCode, settings.ErrorCode, true);
+        if (settings.config) extend(config, settings.config, true);
+    }
+
+    /**
+     * 触发http完成事件
+     * @param {number} errCode 错误代码
+     * @param {string|object} result 返回结果
+     * @param {object} ops 请求配置项
+     * @param {Response} res Response对象
+     * @param {Error} err 错误对象
+     */
+    function fire_http_complete(errCode, result, ops, res, err) {
+        fire(ops.complete, undefined, result, errCode, ops, res, err);
+        fire(config.afterSend, undefined, result, errCode, ops, res, err);
+    }
+
+    /**
+     * 
+     * @param {string} url 请求地址
+     * @param {object} ops 请求配置项
+     */
+    function http_send(url, ops) {
+        ops = ops || {};
+
+        //队列接口
+        if (ops.queue) return ops.queue.add(url, ops);
+
+        if (isFunc(ops)) ops = { success: ops };
+
+        ops.url = url;
+
+        var method = ops.type || ops.method || 'GET',
+            headers = ops.headers || {},
+            timeout = ops.timeout || config.timeout || {},
+
+            is_http_post = method == 'POST',
+            is_json = ops.dataType == 'JSON',
+            data = ops.data,
+            post_data = is_http_post && data ? querystring.stringify(data) : '';
+
+        if (is_http_post) {
+            extend(headers, {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': Buffer.byteLength(post_data, 'utf8')
+            });
+        } else {
+            if (data) url = Q.join(url, data);
+        }
+
+        if (config.headers) extend(headers, config.headers);
+
+        var uri = URL.parse(url);
+
+        ops.options = {
+            hostname: uri.hostname,
+            path: uri.path,
+            port: uri.port,
+            method: method,
+            headers: headers
+        };
+
+        var web = url.startsWith('https') ? https : http;
+
+        fire(config.beforeSend, undefined, ops);
+
+        var req = web.request(ops.options, function (res) {
+            var buffers = [];
+            res.on('data', function (chunk) {
+                buffers.push(chunk);
+            });
+
+            res.on('end', function () {
+                var text = buffers.join(''), data;
+                if (!is_json) return fire_http_complete(undefined, text, ops, res);
+
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    fire_http_complete(ErrorCode.JSONError, undefined, ops, res);
+                }
+
+                fire_http_complete(undefined, data, ops, res);
+            });
+        }).on('error', ops.error || config.error || function (err) {
+            fire_http_complete(ErrorCode.HttpError, undefined, ops, undefined, err);
+        });
+
+        var timeout = ops.timeout || config.timeout;
+        if (timeout && timeout != -1) {
+            req.setTimeout(timeout, function () {
+                fire_http_complete(ErrorCode.Timedout, undefined, ops);
+            });
+        }
+
+        req.write(post_data);
+        req.end();
+
+        return req;
+    }
+
+    /**
+     * http请求,简化调用
+     * @param {string} url 请求地址
+     * @param {object} data 要提交的参数对象
+     * @param {function} cb 回调函数(data, errCode, ops, res, err)
+     * @param {object} settings http设置
+     */
+    function http_send_simplpe(url, data, cb, settings) {
+        var ops;
+
+        if (isFunc(data)) {
+            ops = { complete: data };
+        } else if (isObject(cb)) {
+            ops = cb;
+            ops.data = data;
+        } else {
+            ops = { data: data, complete: cb };
+        }
+
+        //优先设置
+        if (settings) extend(ops, settings, true);
+
+        return http_send(url, ops);
+    }
+
+    /**
+     * http GET 请求
+     * @param {string} url 请求路径,支持http和https
+     * @param {object} data 要提交的参数对象
+     * @param {function} cb 回调函数(data,errCode)
+     */
+    function getHttp(url, data, cb) {
+        return http_send_simplpe(url, data, cb);
+    }
+
+    /**
+     * http POST 请求
+     * @param {string} url 请求路径,支持http和https
+     * @param {object} data 要提交的参数对象
+     * @param {function} cb 回调函数(data,errCode)
+     */
+    function postHttp(url, data, cb) {
+        return http_send_simplpe(url, data, cb, { type: 'POST' });
+    }
+
+    /**
+     * http GET 请求,并将返回结果解析为JSON对象
+     * @param {string} url 请求路径,支持http和https
+     * @param {object} data 要提交的参数对象
+     * @param {function} cb 回调函数(data,errCode)
+     */
+    function getJSON(url, data, cb) {
+        return http_send_simplpe(url, data, cb, { dataType: 'JSON' });
+    }
+
+    /**
+     * http POST 请求,并将返回结果解析为JSON对象
+     * @param {string} url 请求路径,支持http和https
+     * @param {object} data 要提交的参数对象
+     * @param {function} cb 回调函数(data,errCode)
+     */
+    function postJSON(url, data, cb) {
+        return http_send_simplpe(url, data, cb, { type: 'POST', dataType: 'JSON' });
+    }
+
+    extend(Q, {
+        httpSetup: setup,
+        getHttp: getHttp,
+        postHttp: postHttp,
+        getJSON: getJSON,
+        postJSON: postJSON
+    });
+})();

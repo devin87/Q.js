@@ -1,6 +1,6 @@
 ﻿/// <reference path="Q.js" />
 /*
-* Q.Queue.js 队列
+* Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
 * update:2016/03/03 17:54
 */
