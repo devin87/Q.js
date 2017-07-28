@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/07/12 11:56
+* update:2017/07/28 12:02
 */
 (function (undefined) {
     "use strict";
@@ -1034,6 +1034,63 @@
         }
     };
 
+    //-------------------------- 搜索 --------------------------
+
+    var SE = {
+        //获取搜索对象
+        get: function (words) {
+            var pattern = words.replace(/\\(?!d|B|w|W|s|S)/g, "\\\\").replace(/\./, "\\.").replace(/\*/, ".*");
+
+            return new RegExp(pattern, "i");
+        },
+
+        //在列表内搜索
+        //props:要搜索的属性数组
+        //keywords:搜索关键字
+        //highlight:是否记录高亮信息
+        search: function (list, props, keywords, highlight) {
+            if (!list || list.length <= 0) return [];
+
+            if (!keywords) {
+                list.forEach(function (u) {
+                    u.__match = undefined;
+                });
+
+                return list;
+            }
+
+            var tester = SE.get(keywords);
+
+            var tmp = list.filter(function (data) {
+                var matched = false;
+
+                var map_match = {};
+
+                props.forEach(function (prop) {
+                    var text = data[prop];
+                    if (!text || !tester.test(text)) return;
+
+                    if (highlight) map_match[prop] = (text + "").replace(tester, '<span class="light">$&</span>');
+
+                    matched = true;
+                });
+
+                data.__match = matched && highlight ? map_match : undefined;
+
+                return matched;
+            });
+
+            return tmp;
+        },
+
+        //读取数据,若搜索时启用了高亮,则返回高亮字符串
+        read: function (data, prop) {
+            var match = data.__match;
+
+            return match && match[prop] ? match[prop] : data[prop] || "";
+        }
+    };
+
     //---------------------- 其它 ----------------------
 
     //正则验证
@@ -1328,7 +1385,8 @@
         parseHash: parse_url_hash,
         getPageName: get_page_name,
 
-        Listener: Listener
+        Listener: Listener,
+        SE: SE
     };
 
     GLOBAL.Q = Q;

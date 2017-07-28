@@ -15,7 +15,7 @@ module.exports = {
                 dest: "/Q.js"
             },
             {
-                src: ["Q.js", "Q.Queue.js", "node/http.js"],
+                src: ["Q.js", "Q.Queue.js", "node/core.js", "node/store.js", "node/http.js"],
                 dest: "/node/Q.js"
             },
             {

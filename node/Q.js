@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/07/12 11:56
+* update:2017/07/28 12:02
 */
 (function (undefined) {
     "use strict";
@@ -1034,6 +1034,63 @@
         }
     };
 
+    //-------------------------- 搜索 --------------------------
+
+    var SE = {
+        //获取搜索对象
+        get: function (words) {
+            var pattern = words.replace(/\\(?!d|B|w|W|s|S)/g, "\\\\").replace(/\./, "\\.").replace(/\*/, ".*");
+
+            return new RegExp(pattern, "i");
+        },
+
+        //在列表内搜索
+        //props:要搜索的属性数组
+        //keywords:搜索关键字
+        //highlight:是否记录高亮信息
+        search: function (list, props, keywords, highlight) {
+            if (!list || list.length <= 0) return [];
+
+            if (!keywords) {
+                list.forEach(function (u) {
+                    u.__match = undefined;
+                });
+
+                return list;
+            }
+
+            var tester = SE.get(keywords);
+
+            var tmp = list.filter(function (data) {
+                var matched = false;
+
+                var map_match = {};
+
+                props.forEach(function (prop) {
+                    var text = data[prop];
+                    if (!text || !tester.test(text)) return;
+
+                    if (highlight) map_match[prop] = (text + "").replace(tester, '<span class="light">$&</span>');
+
+                    matched = true;
+                });
+
+                data.__match = matched && highlight ? map_match : undefined;
+
+                return matched;
+            });
+
+            return tmp;
+        },
+
+        //读取数据,若搜索时启用了高亮,则返回高亮字符串
+        read: function (data, prop) {
+            var match = data.__match;
+
+            return match && match[prop] ? match[prop] : data[prop] || "";
+        }
+    };
+
     //---------------------- 其它 ----------------------
 
     //正则验证
@@ -1328,7 +1385,8 @@
         parseHash: parse_url_hash,
         getPageName: get_page_name,
 
-        Listener: Listener
+        Listener: Listener,
+        SE: SE
     };
 
     GLOBAL.Q = Q;
@@ -1693,7 +1751,137 @@
 })();
 
 /*
-* Q.http.js http请求
+* Q.node.core.js 通用处理
+* author:devin87@qq.com
+* update:2017/07/28 14:11
+*/
+(function () {
+    var fs = require('fs'),
+        path = require('path'),
+        crypto = require('crypto'),
+
+        extend = Q.extend,
+        fire = Q.fire,
+        isFunc = Q.isFunc,
+        isObject = Q.isObject;
+
+    //规格化路径
+    function normalize_path(_path) {
+        var pathname = path.normalize(_path);
+        return pathname != "\\" && pathname.endsWith("\\") ? pathname.slice(0, -1) : pathname;
+    }
+
+    //创建目录
+    function mkdirSync(url, mode, callback) {
+        if (url == "..") return callback && callback();
+
+        url = normalize_path(url);
+        var arr = url.split("\\");
+
+        //处理 ./aaa
+        if (arr[0] === ".") arr.shift();
+
+        //处理 ../ddd/d
+        if (arr[0] == "..") arr.splice(0, 2, arr[0] + "\\" + arr[1]);
+
+        mode = mode || 493;  //0755
+
+        function inner(dir) {
+            //不存在就创建一个
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, mode);
+
+            if (arr.length) {
+                inner(dir + "\\" + arr.shift());
+            } else {
+                callback && callback();
+            }
+        }
+
+        arr.length && inner(arr.shift());
+    }
+
+    //确保文件夹存在
+    function mkdir(dir) {
+        if (!fs.existsSync(dir)) mkdirSync(dir);
+    }
+
+    /**
+     * 计算文本md5值
+     * @param {string} text
+     */
+    function computeMd5(text) {
+        return crypto.createHash('md5').update(text, 'utf8').digest('hex');
+    }
+
+    extend(Q, {
+        mkdir: mkdir,
+        md5: computeMd5
+    });
+})();
+
+/*
+* Q.node.store.js 读写本地JSON文件
+* author:devin87@qq.com
+* update:2017/07/28 11:42
+*/
+(function () {
+    var fs = require('fs'),
+        path = require('path'),
+
+        extend = Q.extend,
+        fire = Q.fire,
+        isFunc = Q.isFunc,
+        isObject = Q.isObject;
+
+    //自定义存储对象
+    function Storage(path) {
+        this.path = path;
+    }
+
+    Q.factory(Storage);
+
+    Storage.extend({
+        //初始化自定义存储数据
+        init: function (cb) {
+            var self = this;
+            if (!fs.existsSync(self.path)) return fire(cb, undefined, new Error("File Not Found : " + self.path));
+
+            fs.readFile(self.path, function (err, data) {
+                if (err) return fire(cb, undefined, err);
+
+                try {
+                    self.data = JSON.parse(data);
+                } catch (e) {
+                    return fire(cb, undefined, new Error("JSON Parse Error"));
+                }
+
+                fire(cb, undefined, undefined, self.data);
+            });
+        },
+
+        //获取自定义存储数据
+        get: function (key) {
+            return this.data[key];
+        },
+        //设置自定义存储数据
+        set: function (key, value) {
+            this.data[key] = value;
+        },
+        //保存自定义存储数据
+        save: function (cb) {
+            mkdir(path.dirname(this.path));
+
+            fs.writeFile(this.path, JSON.stringify(this.data), 'utf-8', cb);
+        }
+    });
+
+    extend(Q, {
+        Storage: Storage
+    });
+})();
+
+/*
+* Q.node.http.js http请求
 * author:devin87@qq.com
 * update:2017/07/24 17:10
 */

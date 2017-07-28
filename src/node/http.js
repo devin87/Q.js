@@ -1,6 +1,6 @@
 /// <reference path="../Q.js" />
 /*
-* Q.http.js http请求
+* Q.node.http.js http请求
 * author:devin87@qq.com
 * update:2017/07/24 17:10
 */
