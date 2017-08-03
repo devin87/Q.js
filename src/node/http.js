@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求
 * author:devin87@qq.com
-* update:2017/07/24 17:10
+* update:2017/08/03 14:40
 */
 (function () {
     var URL = require('url'),
@@ -48,15 +48,19 @@
     }
 
     /**
-     * 
+     * 发送http请求
      * @param {string} url 请求地址
      * @param {object} ops 请求配置项
      */
-    function http_send(url, ops) {
+    function sendHttp(url, ops) {
         ops = ops || {};
 
         //队列接口
-        if (ops.queue) return ops.queue.add(url, ops);
+        if (ops.queue) {
+            ops.queue.add(url, ops);
+            ops.queue = undefined;
+            return;
+        }
 
         if (isFunc(ops)) ops = { success: ops };
 
@@ -109,7 +113,7 @@
                 try {
                     data = JSON.parse(text);
                 } catch (e) {
-                    fire_http_complete(ErrorCode.JSONError, undefined, ops, res);
+                    return fire_http_complete(ErrorCode.JSONError, undefined, ops, res);
                 }
 
                 fire_http_complete(undefined, data, ops, res);
@@ -153,7 +157,7 @@
         //优先设置
         if (settings) extend(ops, settings, true);
 
-        return http_send(url, ops);
+        return sendHttp(url, ops);
     }
 
     /**
@@ -198,6 +202,7 @@
 
     extend(Q, {
         httpSetup: setup,
+        http: sendHttp,
         getHttp: getHttp,
         postHttp: postHttp,
         getJSON: getJSON,

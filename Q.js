@@ -4457,7 +4457,7 @@
 ﻿/*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  
-* update:2016/12/13 15:40
+* update:2017/08/03 15:10
 */
 (function (undefined) {
     "use strict";
@@ -4680,13 +4680,19 @@
 
     //发送一个ajax请求
     function ajax_send(url, ops) {
+        ops = ops || {};
+
+        //队列接口
+        if (ops.queue) {
+            ops.queue.add(url, ops);
+            ops.queue = undefined;
+            return;
+        }
+
         if (isFunc(ops)) ops = { success: ops };
 
         //配置处理
         ops = ajax_option(url, ops);
-
-        //队列接口
-        if (ops.queue) return ops.queue.add(url, ops);
 
         var type = ops.type,
             headers = ops.headers,
