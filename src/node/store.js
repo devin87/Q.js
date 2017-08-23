@@ -1,8 +1,9 @@
 /// <reference path="../Q.js" />
+/// <reference path="core.js" />
 /*
 * Q.node.store.js 读写本地JSON文件
 * author:devin87@qq.com
-* update:2017/07/28 11:42
+* update:2017/08/15 15:10
 */
 (function () {
     var fs = require('fs'),
@@ -11,11 +12,13 @@
         extend = Q.extend,
         fire = Q.fire,
         isFunc = Q.isFunc,
-        isObject = Q.isObject;
+        isObject = Q.isObject,
+        mkdir = Q.mkdir;
 
     //自定义存储对象
     function Storage(path) {
         this.path = path;
+        this.data = {};
     }
 
     Q.factory(Storage);

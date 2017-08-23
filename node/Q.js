@@ -1822,7 +1822,7 @@
 /*
 * Q.node.store.js 读写本地JSON文件
 * author:devin87@qq.com
-* update:2017/07/28 11:42
+* update:2017/08/15 15:10
 */
 (function () {
     var fs = require('fs'),
@@ -1831,11 +1831,13 @@
         extend = Q.extend,
         fire = Q.fire,
         isFunc = Q.isFunc,
-        isObject = Q.isObject;
+        isObject = Q.isObject,
+        mkdir = Q.mkdir;
 
     //自定义存储对象
     function Storage(path) {
         this.path = path;
+        this.data = {};
     }
 
     Q.factory(Storage);
@@ -1881,9 +1883,9 @@
 })();
 
 /*
-* Q.node.http.js http请求
+* Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/08/03 14:40
+* update:2017/08/23 11:05
 */
 (function () {
     var URL = require('url'),
@@ -1917,13 +1919,13 @@
 
     /**
      * 触发http完成事件
-     * @param {number} errCode 错误代码
      * @param {string|object} result 返回结果
+     * @param {number} errCode 错误代码
      * @param {object} ops 请求配置项
      * @param {Response} res Response对象
      * @param {Error} err 错误对象
      */
-    function fire_http_complete(errCode, result, ops, res, err) {
+    function fire_http_complete(result, errCode, ops, res, err) {
         fire(ops.complete, undefined, result, errCode, ops, res, err);
         fire(config.afterSend, undefined, result, errCode, ops, res, err);
     }
@@ -1989,24 +1991,24 @@
 
             res.on('end', function () {
                 var text = buffers.join(''), data;
-                if (!is_json) return fire_http_complete(undefined, text, ops, res);
+                if (!is_json) return fire_http_complete(text, undefined, ops, res);
 
                 try {
                     data = JSON.parse(text);
                 } catch (e) {
-                    return fire_http_complete(ErrorCode.JSONError, undefined, ops, res);
+                    return fire_http_complete(undefined, ErrorCode.JSONError, ops, res);
                 }
 
                 fire_http_complete(undefined, data, ops, res);
             });
         }).on('error', ops.error || config.error || function (err) {
-            fire_http_complete(ErrorCode.HttpError, undefined, ops, undefined, err);
+            fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
         var timeout = ops.timeout || config.timeout;
         if (timeout && timeout != -1) {
             req.setTimeout(timeout, function () {
-                fire_http_complete(ErrorCode.Timedout, undefined, ops);
+                fire_http_complete(undefined, ErrorCode.Timedout, ops);
             });
         }
 
@@ -2038,7 +2040,11 @@
         //优先设置
         if (settings) extend(ops, settings, true);
 
-        return sendHttp(url, ops);
+        try {
+            return sendHttp(url, ops);
+        } catch (e) {
+            fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, e);
+        }
     }
 
     /**
