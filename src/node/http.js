@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/08/23 11:05
+* update:2017/08/24 15:49
 */
 (function () {
     var URL = require('url'),
@@ -116,7 +116,7 @@
                     return fire_http_complete(undefined, ErrorCode.JSONError, ops, res);
                 }
 
-                fire_http_complete(undefined, data, ops, res);
+                fire_http_complete(data, undefined, ops, res);
             });
         }).on('error', ops.error || config.error || function (err) {
             fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
