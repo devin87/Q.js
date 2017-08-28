@@ -9,6 +9,7 @@
         querystring = require('querystring'),
         http = require('http'),
         https = require('https'),
+        fs = require('fs'),
 
         extend = Q.extend,
         fire = Q.fire,
@@ -18,7 +19,8 @@
     var ErrorCode = {
         HttpError: 1,
         JSONError: 2,
-        Timedout: 3
+        Timedout: 3,
+        FileError: 4
     };
 
     var config = {
@@ -204,12 +206,56 @@
         return http_send_simplpe(url, data, cb, { type: 'POST', dataType: 'JSON' });
     }
 
+    /**
+     * 下载文件
+     * @param {string} url 下载地址
+     * @param {string} dest 保存路径
+     * @param {function} cb 回调函数(errCode)
+     * @param {object} ops 其它配置项 {timeout:120000}
+     */
+    function downloadFile(url, dest, cb, ops) {
+        ops = ops || {};
+
+        var web = url.startsWith('https') ? https : http;
+
+        var req = web.get(url, function (res) {
+            if (res.statusCode === 200) {
+                var file = fs.createWriteStream(dest);
+                res.pipe(file);
+
+                file.on('finish', function () {
+                    file.close(cb);
+                });
+
+                file.on('error', function (err) {
+                    fs.unlink(dest);
+                    fire(cb, undefined, ErrorCode.FileError);
+                });
+            }
+        });
+
+        req.on('error', function (err) {
+            fs.unlink(dest);
+            fire(cb, undefined, ErrorCode.HttpError);
+        });
+
+        var timeout = ops.timeout || 120000;
+        if (timeout && timeout != -1) {
+            req.setTimeout(timeout, function () {
+                fire(cb, undefined, ErrorCode.Timedout);
+            });
+        }
+
+        return req;
+    }
+
     extend(Q, {
         httpSetup: setup,
         http: sendHttp,
         getHttp: getHttp,
         postHttp: postHttp,
         getJSON: getJSON,
-        postJSON: postJSON
+        postJSON: postJSON,
+        downloadFile: downloadFile
     });
 })();
