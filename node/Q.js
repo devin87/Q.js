@@ -1822,7 +1822,7 @@
 /*
 * Q.node.store.js 读写本地JSON文件
 * author:devin87@qq.com
-* update:2017/08/15 15:10
+* update:2017/09/07 16:44
 */
 (function () {
     var fs = require('fs'),
@@ -1868,6 +1868,17 @@
         //设置自定义存储数据
         set: function (key, value) {
             this.data[key] = value;
+            return this;
+        },
+        //移除自定义存储数据
+        remove: function (key) {
+            this.data[key] = undefined;
+            return this;
+        },
+        //清空自定义存储数据
+        clear: function (key) {
+            this.data = {};
+            return this;
         },
         //保存自定义存储数据
         save: function (cb) {
@@ -1986,6 +1997,8 @@
         fire(config.beforeSend, undefined, ops);
 
         var req = web.request(ops.options, function (res) {
+            res.setEncoding('utf8');
+
             var buffers = [];
             res.on('data', function (chunk) {
                 buffers.push(chunk);

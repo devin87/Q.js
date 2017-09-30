@@ -1753,7 +1753,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2017/07/12 11:57
+* update:2017/09/27 18:27
 */
 (function (undefined) {
     "use strict";
@@ -2260,7 +2260,7 @@
     //---------------------- export ----------------------
 
     function ready(fn) {
-        waitFor(function () { return document.body; }, fn);
+        waitFor(function () { return Q.root; }, fn);
     }
 
     extend(Q, {

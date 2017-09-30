@@ -103,6 +103,8 @@
         fire(config.beforeSend, undefined, ops);
 
         var req = web.request(ops.options, function (res) {
+            res.setEncoding('utf8');
+
             var buffers = [];
             res.on('data', function (chunk) {
                 buffers.push(chunk);
