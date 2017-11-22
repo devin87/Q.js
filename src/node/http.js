@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/08/24 15:49
+* update:2017/11/22 14:56
 */
 (function () {
     var URL = require('url'),
@@ -102,13 +102,22 @@
 
         fire(config.beforeSend, undefined, ops);
 
-        var req = web.request(ops.options, function (res) {
-            res.setEncoding('utf8');
+        //是否是http代理模式
+        var is_http_proxy = ops.proxy && ops.res;
 
+        var req = web.request(ops.options, function (res) {
             var buffers = [];
-            res.on('data', function (chunk) {
-                buffers.push(chunk);
-            });
+
+            if (is_http_proxy) {
+                ops.res.writeHead(res.statusCode, res.headers);
+                res.pipe(ops.res);
+            } else {
+                res.setEncoding(ops.encoding || 'utf8');
+
+                res.on('data', function (chunk) {
+                    buffers.push(chunk);
+                });
+            }
 
             res.on('end', function () {
                 var text = buffers.join(''), data;

@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/07/28 12:02
+* update:2017/11/08 13:45
 */
 (function (undefined) {
     "use strict";
@@ -94,11 +94,16 @@
     }
 
     //检测是否为数字
-    function isNum(n, min, max) {
+    function isNum(n, min, max, max_decimal_len) {
         if (typeof n != "number") return false;
 
         if (min != undefined && n < min) return false;
         if (max != undefined && n > max) return false;
+
+        if (max_decimal_len) {
+            var l = ((n + '').split('.')[1] || '').length;
+            if (l > max_decimal_len) return false;
+        }
 
         return true;
     }
@@ -119,8 +124,8 @@
     }
 
     //判断字符串是否是符合条件的数字
-    function checkNum(str, min, max) {
-        return str != null && str != "" && !isNaN(str) && isNum(+str, min, max);
+    function checkNum(str, min, max, max_decimal_len) {
+        return str != null && str != "" && !isNaN(str) && isNum(+str, min, max, max_decimal_len);
     }
 
     //判断字符串是否是符合条件的整数
@@ -370,12 +375,38 @@
         });
     }
 
+    var list_pow = [256 * 256 * 256, 256 * 256, 256, 0];
+
+    //IP转数字（用于排序）
+    function ip2int(ip) {
+        var ips = ip.split('.'), len = ips.length, i = 0, n = 0;
+        while (i < len) {
+            n += list_pow[i] + ips[i];
+            i++;
+        }
+
+        return n || 0;
+    }
+
+    //按IP排序
+    function sortIP(list, prop, desc) {
+        list.sort(function (a, b) {
+            var v1 = a[prop] || "", v2 = b[prop] || "";
+            if (v1 == v2) return 0;
+
+            var rv = ip2int(v1) - ip2int(v2);
+
+            return desc ? -rv : rv;
+        });
+    }
+
     //对象数组排序
-    //type:排序类型 0:字符串排序|1:数字排序|2:日期排序
+    //type:排序类型 0:字符串排序|1:数字排序|2:日期排序|3:IP排序
     function sortList(list, type, prop, desc) {
         switch (type) {
             case 1: sortNumber(list, prop, desc); break;
             case 2: sortDate(list, prop, desc); break;
+            case 3: sortIP(list, prop, desc); break;
             default: sortString(list, prop, desc); break;
         }
     }
@@ -947,7 +978,7 @@
                 //设置毫秒
                 if (ms) date.setMilliseconds(ms);
 
-                return date.isValid() ? (isUTC ? date.fromUTC() : date) : s;
+                return date.isValid() ? (isUTC ? date.fromUTC() : date) : INVALID_DATE;
             }
 
             return toString.call(s) == "[object Date]" ? s : INVALID_DATE;
@@ -1039,7 +1070,7 @@
     var SE = {
         //获取搜索对象
         get: function (words) {
-            var pattern = words.replace(/\\(?!d|B|w|W|s|S)/g, "\\\\").replace(/\./, "\\.").replace(/\*/, ".*");
+            var pattern = words.replace(/\\(?!d|B|w|W|s|S)/g, "\\\\").replace(/\./g, "\\.").replace(/[\[\]\(\)]/g, "\\$&").replace(/\*/, ".*");
 
             return new RegExp(pattern, "i");
         },
@@ -1070,7 +1101,7 @@
                     var text = data[prop];
                     if (!text || !tester.test(text)) return;
 
-                    if (highlight) map_match[prop] = (text + "").replace(tester, '<span class="light">$&</span>');
+                    if (highlight) map_match[prop] = (text + "").replace(tester, '`#`{$&}`#`');
 
                     matched = true;
                 });
@@ -1086,8 +1117,13 @@
         //读取数据,若搜索时启用了高亮,则返回高亮字符串
         read: function (data, prop) {
             var match = data.__match;
+            if (match && match[prop]) {
+                return match[prop].htmlEncode().replace(/`#`{(.+?)}`#`/g, function (m, m1) {
+                    return '<span class="light">' + m1 + '</span>';
+                });
+            }
 
-            return match && match[prop] ? match[prop] : data[prop] || "";
+            return ((data[prop] || "") + "").htmlEncode();
         }
     };
 
@@ -1896,7 +1932,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/08/24 15:49
+* update:2017/11/22 14:56
 */
 (function () {
     var URL = require('url'),
@@ -1996,13 +2032,22 @@
 
         fire(config.beforeSend, undefined, ops);
 
-        var req = web.request(ops.options, function (res) {
-            res.setEncoding('utf8');
+        //是否是http代理模式
+        var is_http_proxy = ops.proxy && ops.res;
 
+        var req = web.request(ops.options, function (res) {
             var buffers = [];
-            res.on('data', function (chunk) {
-                buffers.push(chunk);
-            });
+
+            if (is_http_proxy) {
+                ops.res.writeHead(res.statusCode, res.headers);
+                res.pipe(ops.res);
+            } else {
+                res.setEncoding(ops.encoding || 'utf8');
+
+                res.on('data', function (chunk) {
+                    buffers.push(chunk);
+                });
+            }
 
             res.on('end', function () {
                 var text = buffers.join(''), data;

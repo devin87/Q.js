@@ -2,7 +2,7 @@
 /*
 * Q.setTimer.js 计时器
 * author:devin87@qq.com
-* update:2017/02/09 11:53
+* update:2017/11/22 15:14
 */
 (function (undefined) {
     "use strict";
@@ -22,6 +22,7 @@
             time = ops.time,
             step = ops.step || 1,
             sleep = ops.sleep || 1000,
+            max = +ops.max || 0,
 
             str_join = ops.join || "",
 
@@ -37,7 +38,7 @@
 
         var update = function () {
             total += step;
-            if (total < 0) return;
+            if (total < max) return fire(ops.over);
 
             if (timer) clearTimeout(timer);
 
