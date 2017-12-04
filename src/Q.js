@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/11/08 13:45
+* update:2017/12/04 10:07
 */
 (function (undefined) {
     "use strict";
@@ -486,8 +486,15 @@
         }
     }
 
-    //简单通用工厂,取自mootools
-    function factory(init) {
+    //简单通用工厂
+    function factory(init, Super) {
+        if (Super && isFunc(Super)) {
+            var F = function () { };
+            F.prototype = Super.prototype;
+
+            init.prototype = new F();
+        }
+
         var obj = init;
 
         obj.constructor = factory;
@@ -1262,6 +1269,8 @@
             hash = url.slice(index);
             url = url.slice(0, index);
         }
+
+        url = url.replace(/\?&$|\?$|\&$/, '');
 
         var str_params = params.join("&");
         if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;

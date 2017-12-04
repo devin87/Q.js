@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/11/22 14:56
+* update:2017/12/01 17:34
 */
 (function () {
     var URL = require('url'),
@@ -235,25 +235,27 @@
                 res.pipe(file);
 
                 file.on('finish', function () {
-                    file.close(cb);
+                    file.close(function () {
+                        fire(cb, undefined, undefined, undefined, ops, res);
+                    });
                 });
 
                 file.on('error', function (err) {
-                    fs.unlink(dest);
-                    fire(cb, undefined, ErrorCode.FileError);
+                    fs.unlinkSync(dest);
+                    fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
                 });
             }
         });
 
         req.on('error', function (err) {
-            fs.unlink(dest);
-            fire(cb, undefined, ErrorCode.HttpError);
+            fs.unlinkSync(dest);
+            fire(cb, undefined, undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
         var timeout = ops.timeout || 120000;
         if (timeout && timeout != -1) {
             req.setTimeout(timeout, function () {
-                fire(cb, undefined, ErrorCode.Timedout);
+                fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
             });
         }
 
