@@ -2,7 +2,7 @@
 /*
 * Q.dom.js DOM操作
 * author:devin87@qq.com
-* update:2015/10/15 15:38
+* update:2017/12/05 10:09
 */
 (function (undefined) {
     "use strict";
@@ -532,6 +532,18 @@
         return ele;
     }
 
+    //动态创建样式
+    function createStyle(cssText) {
+        var style = document.createElement("style");
+        style.type = "text/css";
+
+        style.styleSheet && (style.styleSheet.cssText = cssText) || style.appendChild(document.createTextNode(cssText));
+
+        Q.head.appendChild(style);
+
+        return style;
+    }
+
     //解析html为元素,默认返回第一个元素节点
     //all:是否返回所有节点(childNodes)
     function parseHTML(html, all) {
@@ -559,19 +571,6 @@
         containsNode = function (ele, node) {
             return !!(this.compareDocumentPosition(node) & 16);
         }
-    }
-
-    //动态创建样式
-    function createStyle(cssText) {
-        var style = createEle("style");
-        style.type = "text/css";
-
-        if (style.styleSheet) style.styleSheet.cssText = cssText;
-        else style.appendChild(document.createTextNode(cssText));
-
-        head.appendChild(style);
-
-        return style;
     }
 
     var hasClass, addClass, removeClass, replaceClass, toggleClass;
@@ -712,10 +711,10 @@
 
         findTag: findTag,
         createEle: createEle,
+        createStyle: createStyle,
         parseHTML: parseHTML,
         removeEle: removeEle,
         containsNode: containsNode,
-        createStyle: createStyle,
 
         hasClass: hasClass,
         addClass: addClass,
