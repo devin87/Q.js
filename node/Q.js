@@ -1941,7 +1941,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/12/01 17:34
+* update:2017/12/14 16:03
 */
 (function () {
     var URL = require('url'),
@@ -1986,6 +1986,8 @@
     function fire_http_complete(result, errCode, ops, res, err) {
         fire(ops.complete, undefined, result, errCode, ops, res, err);
         fire(config.afterSend, undefined, result, errCode, ops, res, err);
+
+        if (ops.res) ops.res.end(err ? 'Error: ' + err.message : ops.response);
     }
 
     /**
@@ -2041,14 +2043,23 @@
 
         fire(config.beforeSend, undefined, ops);
 
-        //是否是http代理模式
-        var is_http_proxy = ops.proxy && ops.res;
-
         var req = web.request(ops.options, function (res) {
             var buffers = [];
 
+            var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
+                is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false);
+
+            if (ops.res) {
+                if (is_auto_header) ops.res.writeHead(res.statusCode, res.headers);
+                else {
+                    var content_type = res.headers['content-type'] || 'text/html';
+                    if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
+                    ops.res.setHeader('Content-Type', content_type);
+                }
+            }
+
+            //代理请求
             if (is_http_proxy) {
-                ops.res.writeHead(res.statusCode, res.headers);
                 res.pipe(ops.res);
             } else {
                 res.setEncoding(ops.encoding || 'utf8');
@@ -2060,6 +2071,7 @@
 
             res.on('end', function () {
                 var text = buffers.join(''), data;
+                ops.response = text;
                 if (!is_json) return fire_http_complete(text, undefined, ops, res);
 
                 try {
