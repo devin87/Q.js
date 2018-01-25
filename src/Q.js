@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2017/12/04 10:07
+* update:2018/01/25 09:32
 */
 (function (undefined) {
     "use strict";
@@ -993,7 +993,7 @@
 
         //获取秒转化的时间部分
         parts: function (t) {
-            var days = 0, hours = 0, mintues = 0;
+            var days = 0, hours = 0, minutes = 0;
 
             days = Math.floor(t / 86400);
             if (days > 0) t -= days * 86400;
@@ -1001,10 +1001,11 @@
             hours = Math.floor(t / 3600);
             if (hours > 0) t -= hours * 3600;
 
-            mintues = Math.floor(t / 60);
-            if (mintues > 0) t -= mintues * 60;
+            minutes = Math.floor(t / 60);
+            if (minutes > 0) t -= minutes * 60;
 
-            return { days: days, hours: hours, mintues: mintues, seconds: t };
+            //mintues: 之前拼写错误，此为兼容之前的调用
+            return { days: days, hours: hours, minutes: minutes, mintues: minutes, seconds: t };
         },
 
         //计算时间t所代表的总数

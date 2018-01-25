@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2017/12/14 16:03
+* update:2018/01/09 14:21
 */
 (function () {
     var URL = require('url'),
@@ -77,9 +77,11 @@
             is_http_post = method == 'POST',
             is_json = ops.dataType == 'JSON',
             data = ops.data,
-            post_data = is_http_post && data ? querystring.stringify(data) : '';
+            post_data = '';
 
         if (is_http_post) {
+            if (data) post_data = typeof data == 'string' ? data : querystring.stringify(data);
+
             extend(headers, {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Content-Length': Buffer.byteLength(post_data, 'utf8')
