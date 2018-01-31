@@ -63,7 +63,7 @@ Array:
 Date:
   Date.now()                         //获取当前日期和时间所代表的毫秒数 eg: 1512963200408
   Date.from(str)                     //将字符串解析为Date对象 eg: Date.from("2015年6月17日")
-  Date.parts(seconds)                //将秒解析到对应的日期部分 eg:Date.parts(1000)  => {days:0,hours:0,mintues:16,seconds:40}
+  Date.parts(seconds)                //将秒解析到对应的日期部分 eg:Date.parts(1000)  => {days:0,hours:0,minutes:16,seconds:40}
 
   date.isValid()                     //是否有效日期
   date.format(format, ops)           //格式化日期显示 eg: new Date().format("yyyy/MM/dd HH:mm:ss");

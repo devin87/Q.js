@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/01/25 09:32
+* update:2018/01/31 10:25
 */
 (function (undefined) {
     "use strict";
@@ -862,7 +862,7 @@
         isValid: function () {
             return !isNaN(this.valueOf());
         },
-        //格式化日期显示 eg:(new Date()).format("yyyy-MM-dd hh:mm:ss");
+        //格式化日期显示 eg:(new Date()).format("yyyy-MM-dd HH:mm:ss");
         format: function (format, ops) {
             ops = ops || {};
 
@@ -1799,7 +1799,7 @@
 ﻿/*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2017/09/27 18:27
+* update:2018/01/31 10:35
 */
 (function (undefined) {
     "use strict";
@@ -1993,7 +1993,7 @@
                 return "{" + tmp.toString() + "}";
             case "boolean": return obj + "";
             case "number": return isFinite(obj) ? obj + "" : JSON_NULL;
-            case "date": return isFinite(obj.valueOf()) ? obj.toUTC().format("yyyy-MM-ddThh:mm:ss.SZ") : JSON_NULL;
+            case "date": return isFinite(obj.valueOf()) ? "\"" + obj.toUTC().format("yyyy-MM-ddTHH:mm:ss.SZ") + "\"" : JSON_NULL;
             case "function": return;
             default: return typeof obj == "object" ? "{}" : JSON_NULL;
         }

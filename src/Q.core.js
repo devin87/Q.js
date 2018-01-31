@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2017/09/27 18:27
+* update:2018/01/31 10:35
 */
 (function (undefined) {
     "use strict";
@@ -197,7 +197,7 @@
                 return "{" + tmp.toString() + "}";
             case "boolean": return obj + "";
             case "number": return isFinite(obj) ? obj + "" : JSON_NULL;
-            case "date": return isFinite(obj.valueOf()) ? obj.toUTC().format("yyyy-MM-ddThh:mm:ss.SZ") : JSON_NULL;
+            case "date": return isFinite(obj.valueOf()) ? "\"" + obj.toUTC().format("yyyy-MM-ddTHH:mm:ss.SZ") + "\"" : JSON_NULL;
             case "function": return;
             default: return typeof obj == "object" ? "{}" : JSON_NULL;
         }
