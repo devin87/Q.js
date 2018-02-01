@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/01/31 10:25
+* update:2018/02/01 11:21
 */
 (function (undefined) {
     "use strict";
@@ -1141,7 +1141,7 @@
     var RE_MAIL = /^[\w\.-]+@[\w-]+(\.[\w-]+)*\.[\w-]+$/,           //验证邮箱
         RE_PHONE = /^(1\d{10}|(\d{3,4}-?)?\d{7,8}(-\d{1,4})?)$/,    //验证电话号码(手机号码、带区号或不带区号、带分机号或不带分机号)
         RE_TEL = /^1\d{10}$/,                                       //验证手机号码
-        RE_MAC = /[a-fA-F0-9]{2}([:-][a-fA-F0-9]{2}){5}/,           //验证MAC地址
+        RE_MAC = /^[a-fA-F0-9]{2}([:-][a-fA-F0-9]{2}){5}$/,         //验证MAC地址
         RE_HTTP = /^https?:\/\//i;
 
     //判断字符串是否符合IPv4格式
