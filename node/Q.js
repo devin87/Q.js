@@ -1942,7 +1942,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/01/09 14:21
+* update:2018/02/11 09:42
 */
 (function () {
     var URL = require('url'),
@@ -1985,6 +1985,11 @@
      * @param {Error} err 错误对象
      */
     function fire_http_complete(result, errCode, ops, res, err) {
+        //避免某些情况（eg:超时）重复触发回调函数
+        if (!ops._status) ops._status = {};
+        if (ops._status.ended) return;
+        ops._status.ended = true;
+
         fire(ops.complete, undefined, result, errCode, ops, res, err);
         fire(config.afterSend, undefined, result, errCode, ops, res, err);
 
@@ -2092,6 +2097,7 @@
         var timeout = ops.timeout || config.timeout;
         if (timeout && timeout != -1) {
             req.setTimeout(timeout, function () {
+                req.abort();
                 fire_http_complete(undefined, ErrorCode.Timedout, ops);
             });
         }
