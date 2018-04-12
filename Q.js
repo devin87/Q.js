@@ -1828,6 +1828,18 @@
         body,
         root;
 
+    //编码url参数
+    var encode_url_param = encodeURIComponent;
+
+    //解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
+    function decode_url_param(param) {
+        try {
+            return decodeURIComponent(param);
+        } catch (e) {
+            return param;
+        }
+    }
+
     var map_loaded_resource = {},
         GUID_RESOURCE = Date.now(),
 

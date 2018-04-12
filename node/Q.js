@@ -1868,7 +1868,7 @@
 /*
 * Q.node.store.js 读写本地JSON文件
 * author:devin87@qq.com
-* update:2017/09/07 16:44
+* update:2018/02/26 18:10
 */
 (function () {
     var fs = require('fs'),
@@ -1892,7 +1892,7 @@
         //初始化自定义存储数据
         init: function (cb) {
             var self = this;
-            if (!fs.existsSync(self.path)) return fire(cb, undefined, new Error("File Not Found : " + self.path));
+            if (!self.path || !fs.existsSync(self.path)) return fire(cb, undefined, new Error("File Not Found : " + self.path));
 
             fs.readFile(self.path, function (err, data) {
                 if (err) return fire(cb, undefined, err);
@@ -1900,7 +1900,7 @@
                 try {
                     self.data = JSON.parse(data);
                 } catch (e) {
-                    return fire(cb, undefined, new Error("JSON Parse Error"));
+                    return fire(cb, undefined, e);
                 }
 
                 fire(cb, undefined, undefined, self.data);
@@ -1930,7 +1930,7 @@
         save: function (cb) {
             mkdir(path.dirname(this.path));
 
-            fs.writeFile(this.path, JSON.stringify(this.data), 'utf-8', cb);
+            fs.writeFile(this.path, JSON.stringify(this.data), 'utf-8', cb || function () { });
         }
     });
 
@@ -1942,7 +1942,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/02/11 09:42
+* update:2018/04/12 14:12
 */
 (function () {
     var URL = require('url'),
@@ -2055,20 +2055,24 @@
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
-                is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false);
+                is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false),
+                _res = ops.res;
 
-            if (ops.res) {
-                if (is_auto_header) ops.res.writeHead(res.statusCode, res.headers);
-                else {
+            if (_res) {
+                if (is_auto_header) {
+                    Object.forEach(res.headers, function (k, v) {
+                        if (res.headers[k] != undefined) _res.setHeader(k, v);
+                    });
+                } else {
                     var content_type = res.headers['content-type'] || 'text/html';
                     if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
-                    ops.res.setHeader('Content-Type', content_type);
+                    _res.setHeader('Content-Type', content_type);
                 }
             }
 
             //代理请求
             if (is_http_proxy) {
-                res.pipe(ops.res);
+                res.pipe(_res);
             } else {
                 res.setEncoding(ops.encoding || 'utf8');
 

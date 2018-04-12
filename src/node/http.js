@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/02/11 09:42
+* update:2018/04/12 14:12
 */
 (function () {
     var URL = require('url'),
@@ -115,20 +115,24 @@
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
-                is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false);
+                is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false),
+                _res = ops.res;
 
-            if (ops.res) {
-                if (is_auto_header) ops.res.writeHead(res.statusCode, res.headers);
-                else {
+            if (_res) {
+                if (is_auto_header) {
+                    Object.forEach(res.headers, function (k, v) {
+                        if (res.headers[k] != undefined) _res.setHeader(k, v);
+                    });
+                } else {
                     var content_type = res.headers['content-type'] || 'text/html';
                     if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
-                    ops.res.setHeader('Content-Type', content_type);
+                    _res.setHeader('Content-Type', content_type);
                 }
             }
 
             //代理请求
             if (is_http_proxy) {
-                res.pipe(ops.res);
+                res.pipe(_res);
             } else {
                 res.setEncoding(ops.encoding || 'utf8');
 
