@@ -2,7 +2,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2017/07/28 14:11
+* update:2018/04/24 11:47
 */
 (function () {
     var fs = require('fs'),
@@ -53,6 +53,16 @@
     function mkdir(dir) {
         if (!fs.existsSync(dir)) mkdirSync(dir);
     }
+
+    //创建文件夹优先使用 fs-extra 方法
+    try {
+        var fse = require('fs-extra');
+        if (fse) {
+            mkdir = function mkdir(dir) {
+                if (!fs.existsSync(dir)) fse.mkdirsSync(dir);
+            };
+        }
+    } catch (e) { }
 
     /**
      * 计算文本md5值

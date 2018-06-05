@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/04/12 14:12
+* update:2018/05/23 15:03
 */
 (function () {
     var URL = require('url'),
@@ -245,7 +245,7 @@
      * 下载文件
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
-     * @param {function} cb 回调函数(errCode)
+     * @param {function} cb 回调函数(data, errCode)
      * @param {object} ops 其它配置项 {timeout:120000}
      */
     function downloadFile(url, dest, cb, ops) {
