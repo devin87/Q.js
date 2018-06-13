@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/02/01 11:21
+* update:2018/06/11 09:46
 */
 (function (undefined) {
     "use strict";
@@ -375,17 +375,11 @@
         });
     }
 
-    var list_pow = [256 * 256 * 256, 256 * 256, 256, 0];
-
     //IP转数字（用于排序）
     function ip2int(ip) {
-        var ips = ip.split('.'), len = ips.length, i = 0, n = 0;
-        while (i < len) {
-            n += list_pow[i] + ips[i];
-            i++;
-        }
+        var ips = ip.split('.');
 
-        return n || 0;
+        return (+ips[0] || 0) * 256 * 256 * 256 + (+ips[1] || 0) * 256 * 256 + (+ips[2] || 0) * 256 + (+ips[3] || 0);
     }
 
     //按IP排序
@@ -1398,6 +1392,8 @@
 
         toMap: toMap,
         toObjectMap: toObjectMap,
+
+        ip2int: ip2int,
 
         sortNumber: sortNumber,
         sortString: sortString,
