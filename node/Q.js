@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/06/11 09:46
+* update:2018/06/13 14:06
 */
 (function (undefined) {
     "use strict";
@@ -355,8 +355,8 @@
 
     //按数字排序
     function sortNumber(list, prop, desc) {
-        if (desc) list.sort(function (a, b) { return b[prop] - a[prop]; });
-        else list.sort(function (a, b) { return a[prop] - b[prop]; });
+        if (desc) list.sort(function (a, b) { return (+b[prop] || 0) - (+a[prop] || 0); });
+        else list.sort(function (a, b) { return (+a[prop] || 0) - (+b[prop] || 0); });
     }
 
     //按日期排序
