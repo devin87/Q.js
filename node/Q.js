@@ -1442,7 +1442,7 @@
 ﻿/*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2016/03/03 17:54
+* update:2018/07/13 10:11
 */
 (function (undefined) {
     "use strict";
@@ -1468,7 +1468,7 @@
         QUEUE_TASK_OK = 2,           //任务已完成
 
         //自定义事件
-        LIST_CUSTOM_EVENT = ["add", "start", "end", "stop", "complete"];
+        LIST_CUSTOM_EVENT = ["add", "start", "end", "stop", "complete", "limit"];
 
     //异步队列
     function Queue(ops) {
@@ -1480,9 +1480,13 @@
         //队列自定义事件
         self._listener = new Listener(LIST_CUSTOM_EVENT, self);
 
-        self.auto = ops.auto !== false;
-        self.workerThread = ops.workerThread || 1;
-        self.timeout = ops.timeout;
+        self.count = +ops.count || 10000;               //队列长度,超过后将清理已完成的任务
+        self.limitMode = ops.limitMode || 1;            //队列在超出长度后的限制模式(1:禁止添加|2:清理早期的任务)
+        self.auto = ops.auto !== false;                 //是否自动开始
+        self.workerThread = ops.workerThread || 1;      //工作线程
+        self.timeout = ops.timeout;                     //超时时间(毫秒)
+
+        self.id = 0;
 
         if (ops.rtype == "auto") self.rtype = getType(tasks);
 
@@ -1520,6 +1524,7 @@
 
             self.tasks = [];
             self.index = 0;
+            self.id = 0;
 
             self.workerIdle = self.workerThread;
 
@@ -1528,14 +1533,42 @@
 
         //添加任务
         _add: function (args, key, auto) {
-            var self = this;
+            var self = this,
+                tasks = self.tasks,
+                count = self.count,
+                is_add = true;
 
-            var task = { args: makeArray(args), state: QUEUE_TASK_READY };
+            var task = { id: ++self.id, args: makeArray(args), state: QUEUE_TASK_READY };
+
             if (key != undefined) task.key = key;
 
-            self.tasks.push(task);
+            if (tasks.length >= count) {
+                if (self.index) {
+                    tasks = tasks.slice(self.index);
+                    self.index = 0;
+                }
 
-            self.trigger("add", task);
+                if (tasks.length >= count) {
+                    var is_dropped = self.limitMode == 2, dropped_tasks;
+
+                    if (is_dropped) {
+                        dropped_tasks = tasks.slice(0, tasks.length - count + 1);
+                        tasks = tasks.slice(-count + 1);
+                        self.index = 0;
+                    } else {
+                        is_add = false;
+                    }
+
+                    self.trigger("limit", is_dropped ? dropped_tasks : task);
+                }
+
+                self.tasks = tasks;
+            }
+
+            if (is_add) {
+                tasks.push(task);
+                self.trigger("add", task);
+            }
 
             if (auto) self.start();
 
@@ -1576,7 +1609,7 @@
         _run: function () {
             var self = this;
 
-            if (self.stoped || self.workerIdle <= 0 || self.index >= self.tasks.length) return self;
+            if (self.stopped || self.workerIdle <= 0 || self.index >= self.tasks.length) return self;
 
             var task = self.tasks[self.index++],
                 timeout = self.timeout;
@@ -1604,7 +1637,7 @@
         //启动队列,默认延迟10ms
         start: function () {
             var self = this;
-            self.stoped = false;
+            self.stopped = false;
             if (!self.auto) self.auto = true;
 
             delay(self._run, self, 10);
@@ -1616,7 +1649,7 @@
         //time:可选,暂停的毫秒数
         stop: function (time) {
             var self = this;
-            self.stoped = true;
+            self.stopped = true;
 
             if (isUInt(time)) delay(self.start, self, time);
 
@@ -1722,7 +1755,7 @@
             //触发任务完成事件
             self.trigger("end", task);
 
-            if (self.stoped) {
+            if (self.stopped) {
                 //任务已停止且完成时触发任务停止事件
                 if (self.isCompleted(self.tasks.slice(0, self.index))) self.trigger("stop", self.processResult(self.tasks));
             } else {
