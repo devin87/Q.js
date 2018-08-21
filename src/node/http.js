@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/05/23 15:03
+* update:2018/08/17 15:29
 */
 (function () {
     var URL = require('url'),
@@ -246,27 +246,41 @@
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
-     * @param {object} ops 其它配置项 {timeout:120000}
+     * @param {object} ops 其它配置项 { timeout: 120000, progress: function(total,loaded){} }
      */
     function downloadFile(url, dest, cb, ops) {
         ops = ops || {};
 
-        var web = url.startsWith('https') ? https : http;
+        var web = url.startsWith('https') ? https : http,
+            total = 0,
+            loaded = 0;
 
         var req = web.get(url, function (res) {
-            if (res.statusCode === 200) {
-                var file = fs.createWriteStream(dest);
-                res.pipe(file);
+            if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
 
-                file.on('finish', function () {
-                    file.close(function () {
-                        fire(cb, undefined, undefined, undefined, ops, res);
-                    });
+            var file = fs.createWriteStream(dest);
+            res.pipe(file);
+
+            file.on('finish', function () {
+                file.close(function () {
+                    fire(cb, undefined, undefined, undefined, ops, res);
                 });
+            });
 
-                file.on('error', function (err) {
-                    fs.unlinkSync(dest);
-                    fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
+            file.on('error', function (err) {
+                fs.unlinkSync(dest);
+                fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
+            });
+
+            if (ops.progress) {
+                //获取文件长度
+                total = +res.headers['content-length'] || 0;
+                fire(ops.progress, res, total, loaded);
+
+                //下载进度
+                res.on('data', function (chunk) {
+                    loaded += chunk.length;
+                    fire(ops.progress, res, total, loaded);
                 });
             }
         });

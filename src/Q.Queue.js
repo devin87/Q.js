@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2018/07/13 10:11
+* update:2018/07/23 09:42
 */
 (function (undefined) {
     "use strict";
@@ -224,7 +224,7 @@
                 injectIndex = ops.injectIndex || 0,     //执行函数中回调函数所在参数索引
                 injectCallback = ops.injectCallback,    //如果该参数是一个对象,需指定参数名称,可选
 
-                args = task.args.slice(0);
+                args = (task.args || []).slice(0);
 
             //自执行函数
             if (!ops.exec && isFunc(args[0])) injectIndex++;
@@ -274,6 +274,8 @@
 
                 args = self.inject(task, callback),
                 fn = args[0];
+
+            if (!fn) return;
 
             if (fn instanceof Queue) fn.start();
             else if (exec) exec.apply(bind, args);

@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/06/13 14:06
+* update:2018/08/21 09:51
 */
 (function (undefined) {
     "use strict";
@@ -228,7 +228,11 @@
 
         for (; i < len; i++) {
             item = list[i];
-            if ((item && item[prop] != undefined) || !skipUndefined) tmp.push(item[prop]);
+            if (item && item[prop] != undefined) {
+                tmp.push(item[prop]);
+            } else if (!skipUndefined) {
+                tmp.push(undefined);
+            }
         }
 
         return tmp;
@@ -1442,7 +1446,7 @@
 ﻿/*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2018/07/13 10:11
+* update:2018/07/23 09:42
 */
 (function (undefined) {
     "use strict";
@@ -1664,7 +1668,7 @@
                 injectIndex = ops.injectIndex || 0,     //执行函数中回调函数所在参数索引
                 injectCallback = ops.injectCallback,    //如果该参数是一个对象,需指定参数名称,可选
 
-                args = task.args.slice(0);
+                args = (task.args || []).slice(0);
 
             //自执行函数
             if (!ops.exec && isFunc(args[0])) injectIndex++;
@@ -1714,6 +1718,8 @@
 
                 args = self.inject(task, callback),
                 fn = args[0];
+
+            if (!fn) return;
 
             if (fn instanceof Queue) fn.start();
             else if (exec) exec.apply(bind, args);

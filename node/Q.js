@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/06/13 14:06
+* update:2018/08/21 09:51
 */
 (function (undefined) {
     "use strict";
@@ -228,7 +228,11 @@
 
         for (; i < len; i++) {
             item = list[i];
-            if ((item && item[prop] != undefined) || !skipUndefined) tmp.push(item[prop]);
+            if (item && item[prop] != undefined) {
+                tmp.push(item[prop]);
+            } else if (!skipUndefined) {
+                tmp.push(undefined);
+            }
         }
 
         return tmp;
@@ -1442,7 +1446,7 @@
 ﻿/*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2018/07/13 10:11
+* update:2018/07/23 09:42
 */
 (function (undefined) {
     "use strict";
@@ -1664,7 +1668,7 @@
                 injectIndex = ops.injectIndex || 0,     //执行函数中回调函数所在参数索引
                 injectCallback = ops.injectCallback,    //如果该参数是一个对象,需指定参数名称,可选
 
-                args = task.args.slice(0);
+                args = (task.args || []).slice(0);
 
             //自执行函数
             if (!ops.exec && isFunc(args[0])) injectIndex++;
@@ -1714,6 +1718,8 @@
 
                 args = self.inject(task, callback),
                 fn = args[0];
+
+            if (!fn) return;
 
             if (fn instanceof Queue) fn.start();
             else if (exec) exec.apply(bind, args);
@@ -1981,7 +1987,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/05/23 15:03
+* update:2018/08/17 15:29
 */
 (function () {
     var URL = require('url'),
@@ -2225,27 +2231,41 @@
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
-     * @param {object} ops 其它配置项 {timeout:120000}
+     * @param {object} ops 其它配置项 { timeout: 120000, progress: function(total,loaded){} }
      */
     function downloadFile(url, dest, cb, ops) {
         ops = ops || {};
 
-        var web = url.startsWith('https') ? https : http;
+        var web = url.startsWith('https') ? https : http,
+            total = 0,
+            loaded = 0;
 
         var req = web.get(url, function (res) {
-            if (res.statusCode === 200) {
-                var file = fs.createWriteStream(dest);
-                res.pipe(file);
+            if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
 
-                file.on('finish', function () {
-                    file.close(function () {
-                        fire(cb, undefined, undefined, undefined, ops, res);
-                    });
+            var file = fs.createWriteStream(dest);
+            res.pipe(file);
+
+            file.on('finish', function () {
+                file.close(function () {
+                    fire(cb, undefined, undefined, undefined, ops, res);
                 });
+            });
 
-                file.on('error', function (err) {
-                    fs.unlinkSync(dest);
-                    fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
+            file.on('error', function (err) {
+                fs.unlinkSync(dest);
+                fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
+            });
+
+            if (ops.progress) {
+                //获取文件长度
+                total = +res.headers['content-length'] || 0;
+                fire(ops.progress, res, total, loaded);
+
+                //下载进度
+                res.on('data', function (chunk) {
+                    loaded += chunk.length;
+                    fire(ops.progress, res, total, loaded);
                 });
             }
         });

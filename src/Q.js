@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/06/13 14:06
+* update:2018/08/21 09:51
 */
 (function (undefined) {
     "use strict";
@@ -228,7 +228,11 @@
 
         for (; i < len; i++) {
             item = list[i];
-            if ((item && item[prop] != undefined) || !skipUndefined) tmp.push(item[prop]);
+            if (item && item[prop] != undefined) {
+                tmp.push(item[prop]);
+            } else if (!skipUndefined) {
+                tmp.push(undefined);
+            }
         }
 
         return tmp;
