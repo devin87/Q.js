@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/08/21 09:51
+* update:2018/10/10 12:59
 */
 (function (undefined) {
     "use strict";
@@ -351,10 +351,18 @@
         return map;
     }
 
+    //转为字符串
+    //undefined|null  => ""
+    //true|false      => "true" | "false"
+    //0               => "0"
+    function to_string(v) {
+        return v == undefined ? "" : v + "";
+    }
+
     //按字符串排序
     function sortString(list, prop, desc) {
-        if (desc) list.sort(function (a, b) { return -(a[prop] || "").localeCompare(b[prop] || ""); });
-        else list.sort(function (a, b) { return (a[prop] || "").localeCompare(b[prop] || ""); });
+        if (desc) list.sort(function (a, b) { return -to_string(a[prop]).localeCompare(to_string(b[prop])); });
+        else list.sort(function (a, b) { return to_string(a[prop]).localeCompare(to_string(b[prop])); });
     }
 
     //按数字排序

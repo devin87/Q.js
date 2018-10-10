@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/08/17 15:29
+* update:2018/09/28 18:18
 */
 (function () {
     var URL = require('url'),
@@ -71,13 +71,13 @@
             return;
         }
 
-        if (isFunc(ops)) ops = { success: ops };
+        if (isFunc(ops)) ops = { complete: ops };
 
         ops.url = url;
 
         var method = ops.type || ops.method || 'GET',
             headers = ops.headers || {},
-            timeout = ops.timeout || config.timeout || {},
+            timeout = ops.timeout || config.timeout,
 
             is_http_post = method == 'POST',
             is_json = ops.dataType == 'JSON',
@@ -158,12 +158,16 @@
             fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
-        var timeout = ops.timeout || config.timeout;
         if (timeout && timeout != -1) {
-            req.setTimeout(timeout, function () {
+            // req.setTimeout在某些环境需要双倍时间才触发超时回调
+            // req.setTimeout(timeout, function () {
+            //     req.abort();
+            //     fire_http_complete(undefined, ErrorCode.Timedout, ops);
+            // });
+            setTimeout(function () {
                 req.abort();
                 fire_http_complete(undefined, ErrorCode.Timedout, ops);
-            });
+            }, timeout);
         }
 
         req.write(post_data);
@@ -184,6 +188,7 @@
 
         if (isFunc(data)) {
             ops = { complete: data };
+            if (cb && isObject(cb)) extend(ops, cb);
         } else if (isObject(cb)) {
             ops = cb;
             ops.data = data;
@@ -292,9 +297,13 @@
 
         var timeout = ops.timeout || 120000;
         if (timeout && timeout != -1) {
-            req.setTimeout(timeout, function () {
+            //req.setTimeout(timeout, function () {
+            //    fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
+            //});
+            setTimeout(function () {
+                //req.abort();
                 fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
-            });
+            }, timeout);
         }
 
         return req;
