@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/10/10 12:59
+* update:2018/10/10 16:14
 */
 (function (undefined) {
     "use strict";
@@ -16,18 +16,19 @@
         slice = Array.prototype.slice;
 
     //严格模式与window识别检测
-    function detect_strict_mode() {
-        var f = function (arg) {
-            arguments[0] = 1;
+    //2018/10/10: uglify压缩会导致此检测函数失效
+    //function detect_strict_mode() {
+    //    var f = function (arg) {
+    //        arguments[0] = 1;
 
-            return arg != arguments[0];
-        };
+    //        return arg != arguments[0];
+    //    };
 
-        return f(0);
-    }
+    //    return f(0);
+    //}
 
-    //是否严格模式
-    var is_strict_mode = detect_strict_mode(),
+    //默认严格模式,不再通过检测判断
+    var is_strict_mode = true, //detect_strict_mode(),
         is_window_mode = GLOBAL == GLOBAL.window;
 
     //返回对象的类型(小写)
@@ -44,7 +45,7 @@
             if (typeof obj.length === "number") {
                 //严格模式禁止使用 arguments.callee,调用会报错
                 //IE9+等使用 toString.call 会返回 [object Arguments],此为兼容低版本IE
-                if (!is_strict_mode && obj.callee) return "arguments";
+                //if (!is_strict_mode && obj.callee) return "arguments";
 
                 //IE9+等使用 toString.call 会返回 [object Window],此为兼容低版本IE
                 if (obj == obj.window) return "window";
@@ -1995,7 +1996,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/09/28 18:18
+* update:2018/10/11 13:29
 */
 (function () {
     var URL = require('url'),
@@ -2017,7 +2018,8 @@
     };
 
     var config = {
-        timeout: 10000
+        timeout: 10000,
+        timeout_download: 600000
     };
 
     /**
@@ -2092,7 +2094,7 @@
 
         var uri = URL.parse(url);
 
-        ops.options = {
+        var options = {
             hostname: uri.hostname,
             path: uri.path,
             port: uri.port,
@@ -2100,11 +2102,16 @@
             headers: headers
         };
 
+        if (ops.opts) extend(options, ops.opts);
+        if (ops.agent) options.agent = new https.Agent(options);
+
+        ops.options = options;
+
         var web = url.startsWith('https') ? https : http;
 
         fire(config.beforeSend, undefined, ops);
 
-        var req = web.request(ops.options, function (res) {
+        var req = web.request(options, function (res) {
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
@@ -2244,16 +2251,36 @@
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
-     * @param {object} ops 其它配置项 { timeout: 120000, progress: function(total,loaded){} }
+     * @param {object} ops 其它配置项 { timeout: 600000, progress: function(total,loaded){} }
      */
     function downloadFile(url, dest, cb, ops) {
         ops = ops || {};
+
+        var method = ops.type || ops.method || 'GET',
+            headers = ops.headers || {},
+            timeout = ops.timeout || config.timeout_download;
+
+        if (config.headers) extend(headers, config.headers);
+
+        var uri = URL.parse(url);
+
+        var options = {
+            hostname: uri.hostname,
+            path: uri.path,
+            port: uri.port,
+            headers: headers
+        };
+
+        if (ops.opts) extend(options, ops.opts);
+        if (ops.agent) options.agent = new https.Agent(options);
+
+        ops.options = options;
 
         var web = url.startsWith('https') ? https : http,
             total = 0,
             loaded = 0;
 
-        var req = web.get(url, function (res) {
+        var req = web.get(options, function (res) {
             if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
 
             var file = fs.createWriteStream(dest);
@@ -2266,7 +2293,7 @@
             });
 
             file.on('error', function (err) {
-                fs.unlinkSync(dest);
+                if (fs.existsSync(dest)) fs.unlinkSync(dest);
                 fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
             });
 
@@ -2284,11 +2311,10 @@
         });
 
         req.on('error', function (err) {
-            fs.unlinkSync(dest);
+            if (fs.existsSync(dest)) fs.unlinkSync(dest);
             fire(cb, undefined, undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
-        var timeout = ops.timeout || 120000;
         if (timeout && timeout != -1) {
             //req.setTimeout(timeout, function () {
             //    fire(cb, undefined, undefined, ErrorCode.Timedout, ops);

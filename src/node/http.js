@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/09/28 18:18
+* update:2018/10/11 13:29
 */
 (function () {
     var URL = require('url'),
@@ -24,7 +24,8 @@
     };
 
     var config = {
-        timeout: 10000
+        timeout: 10000,
+        timeout_download: 600000
     };
 
     /**
@@ -99,7 +100,7 @@
 
         var uri = URL.parse(url);
 
-        ops.options = {
+        var options = {
             hostname: uri.hostname,
             path: uri.path,
             port: uri.port,
@@ -107,11 +108,16 @@
             headers: headers
         };
 
+        if (ops.opts) extend(options, ops.opts);
+        if (ops.agent) options.agent = new https.Agent(options);
+
+        ops.options = options;
+
         var web = url.startsWith('https') ? https : http;
 
         fire(config.beforeSend, undefined, ops);
 
-        var req = web.request(ops.options, function (res) {
+        var req = web.request(options, function (res) {
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
@@ -251,16 +257,36 @@
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
-     * @param {object} ops 其它配置项 { timeout: 120000, progress: function(total,loaded){} }
+     * @param {object} ops 其它配置项 { timeout: 600000, progress: function(total,loaded){} }
      */
     function downloadFile(url, dest, cb, ops) {
         ops = ops || {};
+
+        var method = ops.type || ops.method || 'GET',
+            headers = ops.headers || {},
+            timeout = ops.timeout || config.timeout_download;
+
+        if (config.headers) extend(headers, config.headers);
+
+        var uri = URL.parse(url);
+
+        var options = {
+            hostname: uri.hostname,
+            path: uri.path,
+            port: uri.port,
+            headers: headers
+        };
+
+        if (ops.opts) extend(options, ops.opts);
+        if (ops.agent) options.agent = new https.Agent(options);
+
+        ops.options = options;
 
         var web = url.startsWith('https') ? https : http,
             total = 0,
             loaded = 0;
 
-        var req = web.get(url, function (res) {
+        var req = web.get(options, function (res) {
             if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
 
             var file = fs.createWriteStream(dest);
@@ -273,7 +299,7 @@
             });
 
             file.on('error', function (err) {
-                fs.unlinkSync(dest);
+                if (fs.existsSync(dest)) fs.unlinkSync(dest);
                 fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
             });
 
@@ -291,11 +317,10 @@
         });
 
         req.on('error', function (err) {
-            fs.unlinkSync(dest);
+            if (fs.existsSync(dest)) fs.unlinkSync(dest);
             fire(cb, undefined, undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
-        var timeout = ops.timeout || 120000;
         if (timeout && timeout != -1) {
             //req.setTimeout(timeout, function () {
             //    fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
