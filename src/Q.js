@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/10/10 16:14
+* update:2018/11/28 16:30
 */
 (function (undefined) {
     "use strict";
@@ -1258,7 +1258,7 @@
         var tmp = [];
 
         Object.forEach(obj, function (k, v) {
-            if (typeof v != "function") tmp.push(encode_url_param(k) + "=" + (v != undefined ? encode_url_param(v) : ""));
+            if (v != undefined && typeof v != "function") tmp.push(encode_url_param(k) + "=" + encode_url_param(v));
         });
 
         return tmp.join("&");
@@ -1290,7 +1290,12 @@
     function parse_url_params(search) {
         if (!search) return {};
 
-        if (search.charAt(0) == "?") search = search.slice(1);
+        var i = search.indexOf("?");
+        if (i != -1) search = search.slice(i + 1);
+
+        var j = search.indexOf("#");
+        if (j != -1) search = search.slice(0, j);
+
         if (!search) return {};
 
         var list = search.split("&"), map = {};
@@ -1322,11 +1327,11 @@
     function parse_url(url) {
         //return new URL(url);
 
-        var m = url.match(/(^[^:]*:)?\/\/([^:]+)(:\d+)?(\/[^?]+)?(\?[^#]*)?(#.*)?$/),
+        var m = url.match(/(^[^:]*:)?\/\/([^:\/]+)(:\d+)?(\/[^?]+)?(\?[^#]*)?(#.*)?$/),
             protocol = m[1] || DEF_LOC.protocol,
             hostname = m[2],
             port = (m[3] || "").slice(1),
-            host = hostname + ":" + port,
+            host = hostname + (port ? ":" + port : ""),
             pathname = m[4] || "/",
             search = m[5] || "",
             hash = m[6] || "";
