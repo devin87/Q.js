@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/11/28 16:30
+* update:2018/11/28 19:40
 */
 (function (undefined) {
     "use strict";
@@ -1323,20 +1323,34 @@
 
     var DEF_LOC = GLOBAL.location || { protocol: "", hash: "", pathname: "" };
 
-    //解析URL路径 => {href,protocol,host,hostname,port,pathname,search,hash}
+    //解析URL路径 => {href,origin,protocol,host,hostname,port,pathname,search,hash}
     function parse_url(url) {
         //return new URL(url);
 
-        var m = url.match(/(^[^:]*:)?\/\/([^:\/]+)(:\d+)?(\/[^?]+)?(\?[^#]*)?(#.*)?$/),
+        var m = url.match(/(^[^:]*:)?\/\/([^:\/]+)(:\d+)?(.*)$/),
             protocol = m[1] || DEF_LOC.protocol,
             hostname = m[2],
             port = (m[3] || "").slice(1),
             host = hostname + (port ? ":" + port : ""),
-            pathname = m[4] || "/",
-            search = m[5] || "",
-            hash = m[6] || "";
 
-        return { href: protocol + "//" + host + pathname + search + hash, protocol: protocol, host: host, hostname: hostname, port: port, pathname: pathname, search: search, hash: hash };
+            pathname = m[4] || "",
+            search = "",
+            hash = "",
+
+            i = pathname.indexOf("#");
+
+        if (i != -1) {
+            hash = pathname.slice(i);
+            pathname = pathname.slice(0, i);
+        }
+
+        i = pathname.indexOf("?");
+        if (i != -1) {
+            search = pathname.slice(i);
+            pathname = pathname.slice(0, i);
+        }
+
+        return { href: protocol + "//" + host + pathname + search + hash, origin: protocol + "//" + host, protocol: protocol, host: host, hostname: hostname, port: port, pathname: pathname || "/", search: search, hash: hash };
     }
 
     //解析url hash eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}

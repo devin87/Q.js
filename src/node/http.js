@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/10/11 13:29
+* update:2018/12/04 11:15
 */
 (function () {
     var URL = require('url'),
@@ -37,6 +37,13 @@
         if (settings.config) extend(config, settings.config, true);
     }
 
+    //http发送之前
+    function fire_http_beforeSend(req, ops) {
+        ops._begin = Date.now();
+
+        return fire(ops.beforeSend || config.beforeSend, undefined, req, ops);
+    }
+
     /**
      * 触发http完成事件
      * @param {string|object} result 返回结果
@@ -51,8 +58,11 @@
         if (ops._status.ended) return;
         ops._status.ended = true;
 
+        ops._end = Date.now();
+        ops.time = ops._end - ops._begin;
+
         fire(ops.complete, undefined, result, errCode, ops, res, err);
-        fire(config.afterSend, undefined, result, errCode, ops, res, err);
+        fire(ops.afterSend || config.afterSend, undefined, result, errCode, ops, res, err);
 
         if (ops.res) ops.res.end(err ? 'Error: ' + err.message : ops.response);
     }
@@ -109,13 +119,13 @@
         };
 
         if (ops.opts) extend(options, ops.opts);
-        if (ops.agent) options.agent = new https.Agent(options);
+        if (ops.agent) options.agent = ops.agent;
 
         ops.options = options;
 
         var web = url.startsWith('https') ? https : http;
 
-        fire(config.beforeSend, undefined, ops);
+        if (options.agent === true) options.agent = new web.Agent();
 
         var req = web.request(options, function (res) {
             var buffers = [];
@@ -163,6 +173,8 @@
         }).on('error', ops.error || config.error || function (err) {
             fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
+
+        if (fire_http_beforeSend(req, ops) === false) return;
 
         if (timeout && timeout != -1) {
             // req.setTimeout在某些环境需要双倍时间才触发超时回调
@@ -278,13 +290,15 @@
         };
 
         if (ops.opts) extend(options, ops.opts);
-        if (ops.agent) options.agent = new https.Agent(options);
+        if (ops.agent) options.agent = ops.agent;
 
         ops.options = options;
 
         var web = url.startsWith('https') ? https : http,
             total = 0,
             loaded = 0;
+
+        if (options.agent === true) options.agent = new web.Agent();
 
         var req = web.get(options, function (res) {
             if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
