@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2018/07/23 09:42
+* update:2019/01/25 09:40
 */
 (function (undefined) {
     "use strict";
@@ -363,12 +363,14 @@
         return series(tasks, complete, ops, isArrayLike(tasks) ? tasks.length : Object.size(tasks));
     }
 
+    var jslib = (Q.G || {}).$ || {};
+
     //ajax队列
     function ajaxQueue(ops) {
         ops = ops || {};
 
         return new Queue(extend(ops, {
-            exec: ops.ajax || Q.ajax || $.ajax,
+            exec: ops.ajax || Q.ajax || Q.http || jslib.ajax,
             injectIndex: 1,
             injectCallback: "complete"
         }));

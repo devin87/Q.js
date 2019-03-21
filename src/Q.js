@@ -483,13 +483,45 @@
             count: 0,
             startTime: +new Date
         });
-    };
+    }
 
     //遍历数组或类数组
     //与浏览器实现保持一致(忽略未初始化的项,注意:ie8及以下会忽略数组中 undefined 项)
     function each_array(list, fn, bind) {
         for (var i = 0, len = list.length; i < len; i++) {
             if (i in list) fn.call(bind, list[i], i, list);
+        }
+    }
+
+    //函数节流,返回一个在指定时间内最多执行一次的函数,第一次或超过指定时间则立即执行函数
+    function throttle(time, fn, bind) {
+        var last_exec_time, timer;
+
+        var exec = function (args) {
+            last_exec_time = Date.now();
+            if (timer) {
+                clearTimeout(timer);
+                timer = undefined;
+            }
+            fn.apply(bind, args);
+        };
+
+        return function () {
+            if (!last_exec_time || Date.now() - last_exec_time > time) return exec(arguments);
+            if (!timer) timer = setTimeout(function () { exec(arguments); }, time);
+        };
+    }
+
+    //函数防抖,返回一个延迟指定时间且仅执行最后一次触发的函数
+    function debounce(time, fn, bind) {
+        var timer;
+        return function () {
+            if (timer) clearTimeout(timer);
+
+            var args = arguments;
+            timer = setTimeout(function () {
+                fn.apply(bind, args);
+            }, time);
         }
     }
 
@@ -1437,6 +1469,9 @@
         delay: delay,
         async: async,
         waitFor: waitFor,
+
+        throttle: throttle,
+        debounce: debounce,
 
         factory: factory,
 
