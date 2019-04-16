@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2018/11/28 19:40
+* update:2019/04/16 10:38
 */
 (function (undefined) {
     "use strict";
@@ -94,9 +94,9 @@
         return value !== undefined ? value : defValue;
     }
 
-    //检测是否为数字
+    //检测是否是符合条件的数字(n必须为数字类型)
     function isNum(n, min, max, max_decimal_len) {
-        if (typeof n != "number") return false;
+        if (typeof n != "number" || isNaN(n)) return false;
 
         if (min != undefined && n < min) return false;
         if (max != undefined && n > max) return false;
@@ -109,12 +109,12 @@
         return true;
     }
 
-    //检测是否为大于0的数字
+    //检测是否为大于0的数字(n必须为数字类型)
     function isUNum(n) {
         return typeof n == "number" && n > 0;
     }
 
-    //检测是否为整数
+    //检测是否为整数(n必须为数字类型)
     function isInt(n, min, max) {
         return isNum(n, min, max) && n === Math.floor(n);
     }
@@ -124,14 +124,24 @@
         return isInt(n, 1);
     }
 
-    //判断字符串是否是符合条件的数字
+    //判断是否是符合条件的数字
     function checkNum(str, min, max, max_decimal_len) {
-        return str != null && str != "" && !isNaN(str) && isNum(+str, min, max, max_decimal_len);
+        if (typeof str == "number") return isNum(str, min, max, max_decimal_len);
+        if (typeof str == "string") {
+            str = str.trim();
+            return str && isNum(+str, min, max, max_decimal_len);
+        }
+        return false;
     }
 
-    //判断字符串是否是符合条件的整数
+    //判断是否是符合条件的整数
     function checkInt(str, min, max) {
-        return str != null && str != "" && !isNaN(str) && isInt(+str, min, max);
+        if (typeof str == "number") return isInt(str, min, max);
+        if (typeof str == "string") {
+            str = str.trim();
+            return str && isInt(+str, min, max);
+        }
+        return false;
     }
 
     //将字符串转为大写,若str不是字符串,则返回defValue
