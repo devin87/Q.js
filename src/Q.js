@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2019/04/16 10:38
+* update:2019/05/10 08:42
 */
 (function (undefined) {
     "use strict";
@@ -1006,6 +1006,8 @@
             if (typeof s == "number") return new Date(s);
             if (typeof s == "string") {
                 if (!s) return INVALID_DATE;
+
+                if (!isNaN(s) && s.length > 6) return new Date(+s);
 
                 //将年、月、横线(-)替换为斜线(/),将时、分替换为冒号(:),去掉日、号、秒
                 //var ds = s.replace(/[-\u5e74\u6708]/g, "/").replace(/[\u65f6\u5206\u70b9]/g, ":").replace(/[T\u65e5\u53f7\u79d2]/g, ""), date = new Date(ds);
