@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2019/05/10 08:42
+* update:2019/07/17 09:57
 */
 (function (undefined) {
     "use strict";
@@ -1318,11 +1318,11 @@
 
         var index = url.indexOf("#"), hash = "";
         if (index != -1) {
-            hash = url.slice(index);
+            hash = url.slice(index).trim();
             url = url.slice(0, index);
         }
 
-        url = url.replace(/\?&$|\?$|\&$/, '');
+        url = url.trim().replace(/\?&$|\?$|\&$/, '');
 
         var str_params = params.join("&");
         if (str_params) url += (url.contains("?") ? "&" : "?") + str_params;
