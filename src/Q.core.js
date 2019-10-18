@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.js" />
+/// <reference path="Q.js" />
 /// <reference path="Q.Queue.js" />
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser

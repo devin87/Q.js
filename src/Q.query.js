@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.js" />
+/// <reference path="Q.js" />
 /*
 * Q.query.js CSS选择器 from mojoQuery v1.5
 * Copyright (c) 2009 scott.cgi

@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2018/12/04 11:15
+* update:2019/08/26 13:46
 */
 (function () {
     var URL = require('url'),
@@ -60,6 +60,8 @@
 
         ops._end = Date.now();
         ops.time = ops._end - ops._begin;
+
+        if (errCode && err && !isObject(errCode)) errCode = { code: errCode, msg: err.message };
 
         fire(ops.complete, undefined, result, errCode, ops, res, err);
         fire(ops.afterSend || config.afterSend, undefined, result, errCode, ops, res, err);
@@ -164,8 +166,8 @@
 
                 try {
                     data = JSON.parse(text);
-                } catch (e) {
-                    return fire_http_complete(undefined, ErrorCode.JSONError, ops, res);
+                } catch (err) {
+                    return fire_http_complete(undefined, ErrorCode.JSONError, ops, res, err);
                 }
 
                 fire_http_complete(data, undefined, ops, res);

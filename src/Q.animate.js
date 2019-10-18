@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.$.js" />
+/// <reference path="Q.$.js" />
 /*
 * Q.animate.js 动画 from mojoFx v1.2
 * Copyright (c) 2010 scott.cgi

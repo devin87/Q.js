@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.$.js" />
+/// <reference path="Q.$.js" />
 /*
 * Q.setTimer.js 计时器
 * author:devin87@qq.com

@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.core.js" />
+/// <reference path="Q.core.js" />
 /*
 * Q.dom.js DOM操作
 * author:devin87@qq.com

@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.core.js" />
+/// <reference path="Q.core.js" />
 /// <reference path="Q.dom.js" />
 /// <reference path="Q.query.js" />
 /*

@@ -1,4 +1,4 @@
-﻿/// <reference path="Q.core.js" />
+/// <reference path="Q.core.js" />
 /*
 * Q.ajax.js Ajax & JSONP
 * author:devin87@qq.com  

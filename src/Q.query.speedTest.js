@@ -1,4 +1,4 @@
-﻿/*
+/*
 * Q.query.speedTest.js Q.query独立运行支持库
 * author:devin87@qq.com  
 * update:2015/06/11 10:30
