@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2019/10/18 14:36
+* update:2019/11/29 18:37
 */
 (function (undefined) {
     "use strict";
@@ -121,7 +121,7 @@
      * @param {number|undefined} max_decimal_len 最大小数位数
      */
     function isNum(n, min, max, max_decimal_len) {
-        if (typeof n != "number") return false;
+        if (typeof n != "number" || isNaN(n)) return false;
 
         if (min != undefined && n < min) return false;
         if (max != undefined && n > max) return false;

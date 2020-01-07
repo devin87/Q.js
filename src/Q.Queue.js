@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2019/10/18 14:42
+* update:2020/01/07 18:48
 */
 (function (undefined) {
     "use strict";
@@ -371,10 +371,10 @@
      * 函数并行执行
      * @param {Array} tasks 任务数组
      * @param {function} complete 队列完成处理函数
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      * @param {number} workerThread 同时执行的任务数量
      */
-    function parallel(tasks, complete, ops) {
+    function parallel(tasks, complete, ops, workerThread) {
         return series(tasks, complete, ops, workerThread || (isArrayLike(tasks) ? tasks.length : Object.size(tasks)));
     }
 
@@ -382,7 +382,7 @@
 
     /**
      * ajax队列
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      */
     function ajaxQueue(ops) {
         ops = ops || {};
