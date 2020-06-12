@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2018/01/31 10:35
+* update:2020/06/05 19:30
 */
 (function (undefined) {
     "use strict";
@@ -16,8 +16,9 @@
 
         makeArray = Q.makeArray,
         extend = Q.extend,
-
         fire = Q.fire,
+
+        join_url = Q.join,
 
         waitFor = Q.waitFor;
 
@@ -83,7 +84,8 @@
         };
 
         list.forEach(function (url) {
-            if (ops.cache === false) url = join_url(url, "_=" + (++GUID_RESOURCE))
+            if (ops.data) url = join_url(url, ops.data);
+            else if (ops.cache === false) url = join_url(url, "_=" + (++GUID_RESOURCE));
 
             //避免加载重复资源
             if (ops.once !== false && map_loaded_resource[url]) {
