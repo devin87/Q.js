@@ -2,36 +2,28 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2018/04/24 11:47
+* update:2020/07/22 20:47
 */
 (function () {
     var fs = require('fs'),
         path = require('path'),
         crypto = require('crypto'),
 
-        extend = Q.extend,
-        fire = Q.fire,
-        isFunc = Q.isFunc,
-        isObject = Q.isObject;
+        extend = Q.extend;
 
-    //规格化路径
-    function normalize_path(_path) {
-        var pathname = path.normalize(_path);
-        return pathname != "\\" && pathname.endsWith("\\") ? pathname.slice(0, -1) : pathname;
-    }
-
-    //创建目录
     function mkdirSync(url, mode, callback) {
         if (url == "..") return callback && callback();
 
-        url = normalize_path(url);
-        var arr = url.split("\\");
+        url = path.normalize(url).replace(/\\/g, '/');
+        if (url != "/" && url.endsWith("/")) url = url.slice(0, -1);
+
+        var arr = url.split("/");
 
         //处理 ./aaa
         if (arr[0] === ".") arr.shift();
 
         //处理 ../ddd/d
-        if (arr[0] == "..") arr.splice(0, 2, arr[0] + "\\" + arr[1]);
+        if (arr[0] == "..") arr.splice(0, 2, path.join(arr[0], arr[1]));
 
         mode = mode || 493;  //0755
 
@@ -40,7 +32,7 @@
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, mode);
 
             if (arr.length) {
-                inner(dir + "\\" + arr.shift());
+                inner(path.join(dir, arr.shift()));
             } else {
                 callback && callback();
             }
