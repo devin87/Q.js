@@ -349,7 +349,7 @@
      * 函数排队执行
      * @param {Array} tasks 任务数组
      * @param {function} complete 队列完成处理函数
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      * @param {number} workerThread 同时执行的任务数量
      */
     function series(tasks, complete, ops, workerThread) {

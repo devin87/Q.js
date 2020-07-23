@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2019/11/29 18:37
+* update:2020/07/23 08:46
 */
 (function (undefined) {
     "use strict";
@@ -897,6 +897,15 @@
         format: function (length, radix) {
             var str = this.toString(radix || 10), fix = length - str.length;
             return (fix > 0 ? "0".repeat(fix) : "") + str;
+        },
+        //数字转为保留指定的小数位数，整数不受影响 eg: (0.2394).maxDecimal(2) => 0.24
+        maxDecimal: function (length) {
+            if (this === Math.floor(this)) return this;
+
+            if (length === 0) return Math.floor(Math.round(this * 100) / 100);
+
+            var fix = Math.pow(10, +length || 8);
+            return Math.round(this * fix) / fix;
         }
     });
 
@@ -2099,7 +2108,7 @@
      * 函数排队执行
      * @param {Array} tasks 任务数组
      * @param {function} complete 队列完成处理函数
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      * @param {number} workerThread 同时执行的任务数量
      */
     function series(tasks, complete, ops, workerThread) {
