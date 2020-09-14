@@ -2240,7 +2240,7 @@
 /*
 * Q.node.store.js 读写本地JSON文件
 * author:devin87@qq.com
-* update:2018/02/26 18:10
+* update:2020/09/11 17:27
 */
 (function () {
     var fs = require('fs'),
@@ -2256,26 +2256,37 @@
     function Storage(path) {
         this.path = path;
         this.data = {};
+        this.isOK = false;
     }
 
-    Q.factory(Storage);
-
-    Storage.extend({
+    Q.factory(Storage).extend({
         //初始化自定义存储数据
         init: function (cb) {
             var self = this;
-            if (!self.path || !fs.existsSync(self.path)) return fire(cb, undefined, new Error("File Not Found : " + self.path));
+            self.isOK = false;
+
+            if (!self.path) return fire(cb, undefined, new Error("File Path Not Found"));
+
+            if (!fs.existsSync(self.path)) {
+                self.isOK = true;
+                return fire(cb, undefined, undefined, self.data);
+            }
 
             fs.readFile(self.path, function (err, data) {
                 if (err) return fire(cb, undefined, err);
 
                 try {
-                    self.data = JSON.parse(data);
+                    var text = data + '';
+                    if (text) {
+                        var data = JSON.parse(text);
+                        if (data && isObject(data)) self.data = data;
+                    }
+
+                    self.isOK = true;
+                    return fire(cb, undefined, undefined, self.data);
                 } catch (e) {
                     return fire(cb, undefined, e);
                 }
-
-                fire(cb, undefined, undefined, self.data);
             });
         },
 
@@ -2300,9 +2311,15 @@
         },
         //保存自定义存储数据
         save: function (cb) {
-            mkdir(path.dirname(this.path));
+            if (!this.isOK) return fire(cb, undefined, new Error('Data Initialization Failed'));
 
-            fs.writeFile(this.path, JSON.stringify(this.data), 'utf-8', cb || function () { });
+            try {
+                mkdir(path.dirname(this.path));
+
+                fs.writeFile(this.path, JSON.stringify(this.data), 'utf-8', cb || function () { });
+            } catch (err) {
+                fire(cb, undefined, err);
+            }
         }
     });
 
@@ -2314,7 +2331,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2019/08/26 13:46
+* update:2020/08/27 18:46
 */
 (function () {
     var URL = require('url'),
@@ -2385,9 +2402,11 @@
      * 发送http请求
      * @param {string} url 请求地址
      * @param {object} ops 请求配置项
+     * @param {number} count 当前请求次数，默认为0
      */
-    function sendHttp(url, ops) {
+    function sendHttp(url, ops, count) {
         ops = ops || {};
+        count = +count || 0;
 
         //队列接口
         if (ops.queue) {
@@ -2484,7 +2503,13 @@
 
                 fire_http_complete(data, undefined, ops, res);
             });
-        }).on('error', ops.error || config.error || function (err) {
+        }).on('error', function (err) {
+            if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
+                var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
+                if (++count <= retryCount) return sendHttp(url, ops, count);
+            }
+
+            fire(ops.error || config.error, this, err);
             fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 

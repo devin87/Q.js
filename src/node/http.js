@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2019/08/26 13:46
+* update:2020/08/27 18:46
 */
 (function () {
     var URL = require('url'),
@@ -73,9 +73,11 @@
      * 发送http请求
      * @param {string} url 请求地址
      * @param {object} ops 请求配置项
+     * @param {number} count 当前请求次数，默认为0
      */
-    function sendHttp(url, ops) {
+    function sendHttp(url, ops, count) {
         ops = ops || {};
+        count = +count || 0;
 
         //队列接口
         if (ops.queue) {
@@ -172,7 +174,13 @@
 
                 fire_http_complete(data, undefined, ops, res);
             });
-        }).on('error', ops.error || config.error || function (err) {
+        }).on('error', function (err) {
+            if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
+                var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
+                if (++count <= retryCount) return sendHttp(url, ops, count);
+            }
+
+            fire(ops.error || config.error, this, err);
             fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
