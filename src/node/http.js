@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2020/08/27 18:46
+* update:2021/02/22 11:16
 */
 (function () {
     var URL = require('url'),
@@ -24,7 +24,7 @@
     };
 
     var config = {
-        timeout: 10000,
+        timeout: 20000,
         timeout_download: 600000
     };
 
@@ -54,9 +54,7 @@
      */
     function fire_http_complete(result, errCode, ops, res, err) {
         //避免某些情况（eg:超时）重复触发回调函数
-        if (!ops._status) ops._status = {};
-        if (ops._status.ended) return;
-        ops._status.ended = true;
+        if (ops._end) return;
 
         ops._end = Date.now();
         ops.time = ops._end - ops._begin;
@@ -123,15 +121,29 @@
         };
 
         if (ops.opts) extend(options, ops.opts);
+
         if (ops.agent) options.agent = ops.agent;
+        if (options.agent === true) options.agent = new web.Agent();
+
+        if (config.options) extend(options, config.options);
 
         ops.options = options;
 
-        var web = url.startsWith('https') ? https : http;
+        ops._end = undefined;
 
-        if (options.agent === true) options.agent = new web.Agent();
+        var web = url.startsWith('https') ? https : http,
+            req,
+            timedout;
 
-        var req = web.request(options, function (res) {
+        var fire_timeout = function (err) {
+            if (timedout) return;
+            timedout = true;
+
+            if (req) req.abort();
+            fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
+        };
+
+        req = web.request(options, function (res) {
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
@@ -174,6 +186,8 @@
 
                 fire_http_complete(data, undefined, ops, res);
             });
+        }).on('timeout', function () {
+            fire_timeout(new Error('Socket Timedout'));
         }).on('error', function (err) {
             if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
                 var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
@@ -189,12 +203,10 @@
         if (timeout && timeout != -1) {
             // req.setTimeout在某些环境需要双倍时间才触发超时回调
             // req.setTimeout(timeout, function () {
-            //     req.abort();
-            //     fire_http_complete(undefined, ErrorCode.Timedout, ops);
+            //     fire_timeout(new Error('HTTP Timedout'));
             // });
             setTimeout(function () {
-                req.abort();
-                fire_http_complete(undefined, ErrorCode.Timedout, ops);
+                fire_timeout(new Error('HTTP Timedout'));
             }, timeout);
         }
 
@@ -284,8 +296,7 @@
     function downloadFile(url, dest, cb, ops) {
         ops = ops || {};
 
-        var method = ops.type || ops.method || 'GET',
-            headers = ops.headers || {},
+        var headers = ops.headers || {},
             timeout = ops.timeout || config.timeout_download;
 
         if (config.headers) extend(headers, config.headers);
@@ -300,17 +311,29 @@
         };
 
         if (ops.opts) extend(options, ops.opts);
+
         if (ops.agent) options.agent = ops.agent;
+        if (options.agent === true) options.agent = new web.Agent();
+
+        if (config.options) extend(options, config.options);
 
         ops.options = options;
 
         var web = url.startsWith('https') ? https : http,
             total = 0,
-            loaded = 0;
+            loaded = 0,
+            req,
+            timedout;
 
-        if (options.agent === true) options.agent = new web.Agent();
+        var fire_timeout = function (err) {
+            if (timedout) return;
+            timedout = true;
 
-        var req = web.get(options, function (res) {
+            if (req) req.abort();
+            fire(cb, undefined, undefined, ErrorCode.Timedout, ops, undefined, err);
+        };
+
+        req = web.get(options, function (res) {
             if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
 
             var file = fs.createWriteStream(dest);
@@ -338,20 +361,19 @@
                     fire(ops.progress, res, total, loaded);
                 });
             }
-        });
-
-        req.on('error', function (err) {
+        }).on('timeout', function () {
+            fire_timeout(new Error('Socket Timedout'));
+        }).on('error', function (err) {
             if (fs.existsSync(dest)) fs.unlinkSync(dest);
             fire(cb, undefined, undefined, ErrorCode.HttpError, ops, undefined, err);
         });
 
         if (timeout && timeout != -1) {
-            //req.setTimeout(timeout, function () {
-            //    fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
-            //});
+            // req.setTimeout(timeout, function () {
+            //     fire_timeout(new Error('HTTP Timedout'));
+            // });
             setTimeout(function () {
-                //req.abort();
-                fire(cb, undefined, undefined, ErrorCode.Timedout, ops);
+                fire_timeout(new Error('HTTP Timedout'));
             }, timeout);
         }
 
