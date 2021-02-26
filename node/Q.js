@@ -2331,7 +2331,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/02/22 11:16
+* update:2021/02/26 14:36
 */
 (function () {
     var URL = require('url'),
@@ -2461,14 +2461,16 @@
         ops._end = undefined;
 
         var web = url.startsWith('https') ? https : http,
-            req,
-            timedout;
+            req;
 
         var fire_timeout = function (err) {
-            if (timedout) return;
-            timedout = true;
+            if (ops._end) return;
 
             if (req) req.abort();
+
+            var retryCount = +ops.retryCount || 0;
+            if (retryCount > 0 && ++count <= retryCount) return sendHttp(url, ops, count);
+
             fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
@@ -2518,6 +2520,9 @@
         }).on('timeout', function () {
             fire_timeout(new Error('Socket Timedout'));
         }).on('error', function (err) {
+            //避免重复触发(超时后调用 req.abort 会触发此处 error 事件且 err.code 为 ECONNRESET) 
+            if (ops._end) return;
+
             if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
                 var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
                 if (++count <= retryCount) return sendHttp(url, ops, count);
@@ -2621,9 +2626,18 @@
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
      * @param {object} ops 其它配置项 { timeout: 600000, progress: function(total,loaded){} }
+     * @param {number} count 当前请求次数，默认为0
      */
-    function downloadFile(url, dest, cb, ops) {
+    function downloadFile(url, dest, cb, ops, count) {
         ops = ops || {};
+        count = +count || 0;
+
+        if (isObject(cb)) {
+            ops = cb;
+            cb = undefined;
+        } else {
+            ops.complete = cb;
+        }
 
         var headers = ops.headers || {},
             timeout = ops.timeout || config.timeout_download;
@@ -2651,32 +2665,34 @@
         var web = url.startsWith('https') ? https : http,
             total = 0,
             loaded = 0,
-            req,
-            timedout;
+            req;
 
         var fire_timeout = function (err) {
-            if (timedout) return;
-            timedout = true;
+            if (ops._end) return;
 
             if (req) req.abort();
-            fire(cb, undefined, undefined, ErrorCode.Timedout, ops, undefined, err);
+
+            var retryCount = +ops.retryCount || 0;
+            if (retryCount > 0 && ++count <= retryCount) return sendHttp(url, ops, count);
+
+            fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
         req = web.get(options, function (res) {
-            if (res.statusCode !== 200) return fire(cb, undefined, undefined, ErrorCode.HttpError, ops, res, 'Http code: ' + res.statusCode);
+            if (res.statusCode !== 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error('Http code: ' + res.statusCode));
 
             var file = fs.createWriteStream(dest);
             res.pipe(file);
 
             file.on('finish', function () {
                 file.close(function () {
-                    fire(cb, undefined, undefined, undefined, ops, res);
+                    fire_http_complete(undefined, undefined, ops, res);
                 });
             });
 
             file.on('error', function (err) {
                 if (fs.existsSync(dest)) fs.unlinkSync(dest);
-                fire(cb, undefined, undefined, ErrorCode.FileError, ops, res, err);
+                fire_http_complete(undefined, ErrorCode.FileError, ops, res, err);
             });
 
             if (ops.progress) {
@@ -2693,9 +2709,21 @@
         }).on('timeout', function () {
             fire_timeout(new Error('Socket Timedout'));
         }).on('error', function (err) {
+            //避免重复触发(超时后调用 req.abort 会触发此处 error 事件且 err.code 为 ECONNRESET) 
+            if (ops._end) return;
+
             if (fs.existsSync(dest)) fs.unlinkSync(dest);
-            fire(cb, undefined, undefined, ErrorCode.HttpError, ops, undefined, err);
+
+            if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
+                var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
+                if (++count <= retryCount) return downloadFile(url, dest, cb, ops, count);
+            }
+
+            fire(ops.error || config.error, this, err);
+            fire_http_complete(undefined, ErrorCode.HttpError, ops, undefined, err);
         });
+
+        if (fire_http_beforeSend(req, ops) === false) return;
 
         if (timeout && timeout != -1) {
             // req.setTimeout(timeout, function () {
