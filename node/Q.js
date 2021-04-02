@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2020/07/23 08:46
+* update:2021/03/19 10:15
 */
 (function (undefined) {
     "use strict";
@@ -672,35 +672,30 @@
     /**
      * 函数节流,返回一个在指定时间内最多执行一次的函数,第一次或超过指定时间则立即执行函数
      * @param {number} time 指定时间(单位:ms)
-     * @param {function} fn 处理函数(arg1,arg2)
+     * @param {function} fn 处理函数(arg1,...)
      * @param {object} bind fn绑定的作用域对象
      */
     function throttle(time, fn, bind) {
-        var last_exec_time, timer;
-
-        var exec = function (args) {
-            last_exec_time = Date.now();
-            if (timer) {
-                clearTimeout(timer);
-                timer = undefined;
-            }
-            fn.apply(bind, args);
-        };
+        var last_exec_time;
 
         return function () {
-            if (!last_exec_time || Date.now() - last_exec_time > time) return exec(arguments);
-            if (!timer) timer = setTimeout(function () { exec(arguments); }, time);
+            var now = Date.now();
+            if (last_exec_time && now - last_exec_time < time) return;
+
+            last_exec_time = now;
+            fn.apply(bind, arguments);
         };
     }
 
     /**
-     * 函数防抖,返回一个延迟指定时间且仅执行最后一次触发的函数
+     * 函数防抖,返回一个延迟指定时间且仅执行最后一次触发的函数,若以小于指定时间的频率一直调用,则函数不会执行
      * @param {number} time 指定时间(单位:ms)
-     * @param {function} fn 处理函数(arg1,arg2)
+     * @param {function} fn 处理函数(arg1,...)
      * @param {object} bind fn绑定的作用域对象
      */
     function debounce(time, fn, bind) {
         var timer;
+
         return function () {
             if (timer) clearTimeout(timer);
 
