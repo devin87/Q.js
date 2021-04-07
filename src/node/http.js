@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/02/26 14:36
+* update:2021/04/06 18:49
 */
 (function () {
     var URL = require('url'),
@@ -10,6 +10,7 @@
         http = require('http'),
         https = require('https'),
         fs = require('fs'),
+        zlib = require('zlib'),
 
         extend = Q.extend,
         fire = Q.fire,
@@ -164,29 +165,42 @@
                 }
             }
 
+            var encoding = res.headers['content-encoding'];
+
             //代理请求
             if (is_http_proxy) {
                 res.pipe(_res);
             } else {
-                res.setEncoding(ops.encoding || 'utf8');
-
                 res.on('data', function (chunk) {
                     buffers.push(chunk);
                 });
             }
 
             res.on('end', function () {
-                var text = buffers.join(''), data;
-                ops.response = text;
-                if (!is_json) return fire_http_complete(text, undefined, ops, res);
+                var next = function (err, text) {
+                    if (err) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, err);
 
-                try {
-                    data = JSON.parse(text);
-                } catch (err) {
-                    return fire_http_complete(undefined, ErrorCode.JSONError, ops, res, err);
+                    ops.response = text;
+                    if (!is_json) return fire_http_complete(text, undefined, ops, res);
+
+                    var data;
+
+                    try {
+                        data = JSON.parse(text);
+                    } catch (err) {
+                        return fire_http_complete(undefined, ErrorCode.JSONError, ops, res, err);
+                    }
+
+                    fire_http_complete(data, undefined, ops, res);
+                };
+
+                var buffer = Buffer.concat(buffers);
+
+                switch (encoding) {
+                    case 'gzip': return zlib.gunzip(buffer, next);
+                    case 'deflate': return zlib.inflate(buffer, next);
+                    default: return next(undefined, buffer.toString('utf8'));
                 }
-
-                fire_http_complete(data, undefined, ops, res);
             });
         }).on('timeout', function () {
             fire_timeout(new Error('Socket Timedout'));
