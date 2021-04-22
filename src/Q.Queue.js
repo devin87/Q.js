@@ -2,7 +2,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2020/01/07 18:48
+* update:2020/04/08 10:23
 */
 (function (undefined) {
     "use strict";
@@ -32,7 +32,7 @@
 
     /**
      * 异步队列
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      */
     function Queue(ops) {
         ops = ops || {};

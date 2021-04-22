@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2021/03/19 10:15
+* update:2021/04/15 15:39
 */
 (function (undefined) {
     "use strict";
@@ -72,7 +72,7 @@
         //在IE11兼容模式（ie6-8）下存在bug,当调用次数过多时可能返回不正确的结果
         //return typeof fn == "function";
 
-        return toString.call(fn) === "[object Function]";
+        return toString.call(fn) === "[object Function]" || toString.call(fn) === "[object AsyncFunction]";
     }
 
     /**
@@ -1756,7 +1756,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2020/01/07 18:48
+* update:2020/04/08 10:23
 */
 (function (undefined) {
     "use strict";
@@ -1786,7 +1786,7 @@
 
     /**
      * 异步队列
-     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,inject:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
+     * @param {object} ops 配置对象 eg: {tasks:[],count:10000,limitMode:1,auto:true,workerThread:1,timeout:0,injectIndex:1,injectCallback:'complete',exec:function(task,next){},process:function(task,next){},processResult:function(tasks){}}
      */
     function Queue(ops) {
         ops = ops || {};
