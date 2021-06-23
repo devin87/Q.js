@@ -1756,7 +1756,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2020/04/08 10:23
+* update:2021/06/23 12:53
 */
 (function (undefined) {
     "use strict";
@@ -2029,14 +2029,15 @@
                 exec = ops.exec,    //执行函数
                 bind = ops.bind,    //执行函数绑定的上下文,可选
 
-                args = self.inject(task, callback),
-                fn = args[0];
+                args = self.inject(task, callback);
 
+            if (exec) return exec.apply(bind, args);
+
+            var fn = args[0];
             if (!fn) return;
 
             if (fn instanceof Queue) fn.start();
-            else if (exec) exec.apply(bind, args);
-            else fn.apply(bind, args.slice(1));
+            else if (Q.isFunc(fn)) fn.apply(bind, args.slice(1));
         },
 
         //队列完成时,任务结果处理,用于complete事件参数
