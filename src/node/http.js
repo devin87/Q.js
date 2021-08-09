@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/04/06 18:49
+* update:2021/07/02 17:49
 */
 (function () {
     var URL = require('url'),
@@ -208,7 +208,7 @@
             //避免重复触发(超时后调用 req.abort 会触发此处 error 事件且 err.code 为 ECONNRESET) 
             if (ops._end) return;
 
-            if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
+            if (err.code === 'ECONNRESET' || err.code === 'EPROTO') {
                 var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
                 if (++count <= retryCount) return sendHttp(url, ops, count);
             }
@@ -399,7 +399,7 @@
 
             if (fs.existsSync(dest)) fs.unlinkSync(dest);
 
-            if (err.code === 'ECONNRESET' && (req.reusedSocket || req.reusedSocket == undefined)) {
+            if (err.code === 'ECONNRESET' || err.code === 'EPROTO') {
                 var retryCount = ops.retryCount != undefined ? +ops.retryCount || 0 : 1;
                 if (++count <= retryCount) return downloadFile(url, dest, cb, ops, count);
             }
