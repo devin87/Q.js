@@ -2330,8 +2330,7 @@
 * update:2021/07/02 17:49
 */
 (function () {
-    var URL = require('url'),
-        querystring = require('querystring'),
+    var querystring = require('querystring'),
         http = require('http'),
         https = require('https'),
         fs = require('fs'),
@@ -2436,12 +2435,7 @@
 
         if (config.headers) extend(headers, config.headers);
 
-        var uri = URL.parse(url);
-
         var options = {
-            hostname: uri.hostname,
-            path: uri.path,
-            port: uri.port,
             method: method,
             headers: headers
         };
@@ -2471,7 +2465,7 @@
             fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
-        req = web.request(options, function (res) {
+        req = web.request(url, options, function (res) {
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
@@ -2649,17 +2643,17 @@
             ops.complete = cb;
         }
 
+        try {
+            //格式化url
+            url = encodeURI(decodeURI(url));
+        } catch (err) { }
+
         var headers = ops.headers || {},
             timeout = ops.timeout || config.timeout_download;
 
         if (config.headers) extend(headers, config.headers);
 
-        var uri = URL.parse(url);
-
         var options = {
-            hostname: uri.hostname,
-            path: uri.path,
-            port: uri.port,
             headers: headers
         };
 
@@ -2688,7 +2682,7 @@
             fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
-        req = web.get(options, function (res) {
+        req = web.get(url, options, function (res) {
             if (res.statusCode !== 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error('Http code: ' + res.statusCode));
 
             var file = fs.createWriteStream(dest);
