@@ -2330,7 +2330,8 @@
 * update:2021/07/02 17:49
 */
 (function () {
-    var querystring = require('querystring'),
+    var Url = require('url'),
+        querystring = require('querystring'),
         http = require('http'),
         https = require('https'),
         fs = require('fs'),
@@ -2435,7 +2436,12 @@
 
         if (config.headers) extend(headers, config.headers);
 
+        var myURL = Url.parse(url);
+
         var options = {
+            hostname: myURL.hostname,
+            path: myURL.path,
+            port: myURL.port,
             method: method,
             headers: headers
         };
@@ -2465,7 +2471,7 @@
             fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
-        req = web.request(url, options, function (res) {
+        req = web.request(options, function (res) {
             var buffers = [];
 
             var is_http_proxy = Q.def(ops.proxy, ops.res ? true : false),
@@ -2653,7 +2659,12 @@
 
         if (config.headers) extend(headers, config.headers);
 
+        var myURL = Url.parse(url);
+
         var options = {
+            hostname: myURL.hostname,
+            path: myURL.path,
+            port: myURL.port,
             headers: headers
         };
 
@@ -2682,7 +2693,7 @@
             fire_http_complete(undefined, ErrorCode.Timedout, ops, undefined, err);
         };
 
-        req = web.get(url, options, function (res) {
+        req = web.get(options, function (res) {
             if (res.statusCode !== 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error('Http code: ' + res.statusCode));
 
             var file = fs.createWriteStream(dest);
