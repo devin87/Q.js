@@ -3,7 +3,7 @@
 /*
 * Q.core.js (包括 通用方法、JSON、Cookie、Storage 等) for browser
 * author:devin87@qq.com  
-* update:2020/06/05 19:30
+* update:2021/09/24 10:58
 */
 (function (undefined) {
     "use strict";

@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2021/04/15 15:39
+* update:2021/09/24 11:04
 */
 (function (undefined) {
     "use strict";
@@ -458,6 +458,7 @@
      */
     function getChangedData(target, source, skipProps, skipPrefix) {
         if (!target) return undefined;
+        if (!source) return target;
 
         var map_skip_prop = skipProps ? toMap(skipProps, true) : {},
             data_changed = {},
@@ -1493,13 +1494,13 @@
         return ops.all ? pl : pl.text;
     }
 
-    var encode_url_param = encodeURIComponent;
+    var encodeUrlParam = encodeURIComponent;
 
     /**
      * 解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
      * @param {string} param 要解码的字符串 eg:%E6%B5%8B%E8%AF%95
      */
-    function decode_url_param(param) {
+    function decodeUrlParam(param) {
         try {
             return decodeURIComponent(param);
         } catch (e) {
@@ -1511,14 +1512,14 @@
      * 将参数对象转为查询字符串 eg: {a:1,b:2} => a=1&b=2
      * @param {object} obj 参数对象 eg: {a:1,b:2}
      */
-    function to_param_str(obj) {
+    function joinUrlParams(obj) {
         if (!obj) return "";
         if (typeof obj == "string") return obj;
 
         var tmp = [];
 
         Object.forEach(obj, function (k, v) {
-            if (v != undefined && typeof v != "function") tmp.push(encode_url_param(k) + "=" + encode_url_param(v));
+            if (v != undefined && typeof v != "function") tmp.push(encodeUrlParam(k) + "=" + encodeUrlParam(v));
         });
 
         return tmp.join("&");
@@ -1528,11 +1529,11 @@
      * 连接url和查询字符串(支持传入对象)
      * @param {string} url URL地址
      */
-    function join_url(url) {
+    function joinUrl(url) {
         var params = [], args = arguments;
         for (var i = 1, len = args.length; i < len; i++) {
             var param = args[i];
-            if (param) params.push(to_param_str(param));
+            if (param) params.push(joinUrlParams(param));
         }
 
         var index = url.indexOf("#"), hash = "";
@@ -1553,7 +1554,7 @@
      * 解析url参数 eg:url?id=1
      * @param {string} search 查询字符串 eg: ?id=1
      */
-    function parse_url_params(search) {
+    function parseUrlParams(search) {
         if (!search) return {};
 
         var i = search.indexOf("?");
@@ -1574,7 +1575,7 @@
                 key = kv[0],
                 value = kv[1];
 
-            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
+            if (key) map[decodeUrlParam(key)] = value ? decodeUrlParam(value) : "";
         }
 
         return map;
@@ -1584,10 +1585,10 @@
      * 转换或解析查询字符串
      * @param {string|object} obj 为string类型时将解析为参数对象，否则将转换为查询字符串
      */
-    function process_url_param(obj) {
+    function processUrlParam(obj) {
         if (obj == undefined) return;
 
-        return typeof obj == "string" ? parse_url_params(obj) : to_param_str(obj);
+        return typeof obj == "string" ? parseUrlParams(obj) : joinUrlParams(obj);
     }
 
     var DEF_LOC = GLOBAL.location || { protocol: "", hash: "", pathname: "" };
@@ -1596,7 +1597,7 @@
      * 解析URL路径 => {href,origin,protocol,host,hostname,port,pathname,search,hash}
      * @param {string} url URL地址
      */
-    function parse_url(url) {
+    function parseUrl(url) {
         //return new URL(url);
 
         var m = url.match(/(^[^:]*:)?\/\/([^:\/]+)(:\d+)?(.*)$/),
@@ -1629,7 +1630,7 @@
      * 解析 URL hash值 eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
      * @param {string} hash eg:#net/config!/wan
      */
-    function parse_url_hash(hash) {
+    function parseUrlHash(hash) {
         if (!hash) hash = DEF_LOC.hash;
         //可能对后续处理造成影响,比如 param 中有/等转码字符
         //if(hash) hash = decode_url_param(hash);
@@ -1652,7 +1653,7 @@
      * @param {string} path eg: /app.html?id=1#aa
      * @param {boolean} keepQueryHash 是否保留查询字符串和Hash字符串,默认为false
      */
-    function get_page_name(path, keepQueryHash) {
+    function getPageName(path, keepQueryHash) {
         var pathname = (path || DEF_LOC.pathname).replace(/\\/g, "/"),
             start = pathname.lastIndexOf("/") + 1;
 
@@ -1662,6 +1663,18 @@
         if (end == -1) end = pathname.indexOf("#", start);
 
         return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
+    }
+
+    /**
+     * 解析JSON，解析失败时返回undefined
+     * @param {string} text 要解析的JSON字符串
+     */
+    function parseJSON(text) {
+        if (!text || typeof text !== 'string') return text;
+
+        try {
+            return JSON.parse(text);
+        } catch (err) { }
     }
 
     //---------------------- export ----------------------
@@ -1732,14 +1745,16 @@
         parseLevel: parseLevel,
         formatSize: formatSize,
 
-        parseUrlParams: parse_url_params,
-        joinUrlParams: to_param_str,
-        param: process_url_param,
-        join: join_url,
+        parseUrlParams: parseUrlParams,
+        joinUrlParams: joinUrlParams,
+        param: processUrlParam,
+        join: joinUrl,
 
-        parseUrl: parse_url,
-        parseHash: parse_url_hash,
-        getPageName: get_page_name,
+        parseUrl: parseUrl,
+        parseHash: parseUrlHash,
+        getPageName: getPageName,
+
+        parseJSON: parseJSON,
 
         Listener: Listener,
         SE: SE

@@ -2,7 +2,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/07/02 17:49
+* update:2021/09/22 16:18
 */
 (function () {
     var Url = require('url'),
@@ -71,7 +71,7 @@
     /**
      * 发送http请求
      * @param {string} url 请求地址
-     * @param {object} ops 请求配置项
+     * @param {object} ops 请求配置项 {queue,type,headers,timeout,dataType,data,opts,agent,retryCount,proxy,res,autoHeader,complete}
      * @param {number} count 当前请求次数，默认为0
      */
     function sendHttp(url, ops, count) {
@@ -153,15 +153,19 @@
                 is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false),
                 _res = ops.res;
 
-            if (_res) {
-                if (is_auto_header) {
-                    Object.forEach(res.headers, function (k, v) {
-                        if (res.headers[k] != undefined) _res.setHeader(k, v);
-                    });
-                } else {
-                    var content_type = res.headers['content-type'] || 'text/html';
-                    if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
-                    _res.setHeader('Content-Type', content_type);
+            if (_res && !res._ended) {
+                try {
+                    if (is_auto_header) {
+                        Object.forEach(res.headers, function (k, v) {
+                            if (res.headers[k] != undefined) _res.setHeader(k, v);
+                        });
+                    } else {
+                        var content_type = res.headers['content-type'] || 'text/html';
+                        if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
+                        _res.setHeader('Content-Type', content_type);
+                    }
+                } catch (err) {
+                    throw new Error(err.message + '\n' + url);
                 }
             }
 
@@ -427,13 +431,91 @@
         return req;
     }
 
+    /**
+     * 将 http 请求转为 curl命令
+     * @param {string} url 
+     * @param {object} ops 请求配置项 {type,headers,timeout,data,ua,auth,cookie,keepalive,enableRedirect,maxRedirects,iface,proxy}
+     * @returns {string}
+     */
+    function http2curl(url, ops) {
+        ops = ops || {};
+
+        var method = ops.type || ops.method || 'GET',
+            headers = ops.headers || {},
+            timeout = ops.timeout || config.timeout,
+
+            is_http_get = method == 'GET',
+            is_http_post = method == 'POST',
+
+            data = ops.data,
+            post_data = '';
+
+        if (is_http_post) {
+            if (data) post_data = typeof data == 'string' ? data : querystring.stringify(data);
+        } else {
+            if (data) url = Q.join(url, data);
+        }
+
+        if (config.headers) extend(headers, config.headers);
+
+        var curl = ['curl -X ' + method];
+
+        //启用服务器重定向
+        if (ops.enableRedirect && is_http_get) {
+            curl.push('-L');
+
+            //最大重定向次数
+            var maxRedirects = +ops.maxRedirects || 3;
+            curl.push('--max-redirs ' + maxRedirects);
+        }
+
+        //跳过 ssl 检测
+        if (ops.skipSSL) curl.push('-k');
+
+        var dataAuth = ops.auth;
+        if (dataAuth && dataAuth.user) curl.push('--user ' + dataAuth.user.replace(/"/g, '\\"') + ':' + (dataAuth.passwd || '').replace(/"/g, '\\"'));
+
+        if (is_http_post) curl.push('-d "' + post_data + '"');
+        else curl.push('"' + url + '"');
+
+        //设置 UserAgent eg: curl -A 'myua' url
+        if (ops.ua) curl.push('-A "' + ops.ua.replace(/"/g, '\\"') + '"');
+
+        //设置 Cookie eg: curl -b 'a=1;b=2' url
+        if (ops.cookie && typeof ops.cookie == 'string') curl.push('-b "' + ops.cookie.replace(/"/g, '\\"') + '"');
+
+        //设置网卡
+        if (ops.iface) curl.push('--interface "' + ops.iface + '"');
+
+        //设置代理
+        if (ops.proxy) curl.push('--proxy "' + ops.proxy + '"');
+
+        //静默输出（不显示进度信息）
+        if (ops.silent !== false) curl.push('--silent');
+
+        if (timeout) curl.push('--max-time ' + Math.round(timeout / 1000));
+        if (ops.keepalive === false) curl.push('--no-keepalive');
+
+        //curl 其它参数，多个之间用空格分开
+        if (ops.curlArgs) curl.push(ops.curlArgs);
+
+        Object.forEach(headers, function (k, v) {
+            curl.push('-H "' + k + ':' + v + '"');
+        });
+
+        return curl.join(' ');
+    }
+
     extend(Q, {
         httpSetup: setup,
+
         http: sendHttp,
         getHttp: getHttp,
         postHttp: postHttp,
         getJSON: getJSON,
         postJSON: postJSON,
-        downloadFile: downloadFile
+
+        downloadFile: downloadFile,
+        http2curl: http2curl
     });
 })();

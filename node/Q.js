@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2021/04/15 15:39
+* update:2021/09/24 11:04
 */
 (function (undefined) {
     "use strict";
@@ -458,6 +458,7 @@
      */
     function getChangedData(target, source, skipProps, skipPrefix) {
         if (!target) return undefined;
+        if (!source) return target;
 
         var map_skip_prop = skipProps ? toMap(skipProps, true) : {},
             data_changed = {},
@@ -1493,13 +1494,13 @@
         return ops.all ? pl : pl.text;
     }
 
-    var encode_url_param = encodeURIComponent;
+    var encodeUrlParam = encodeURIComponent;
 
     /**
      * 解码url参数值 eg:%E6%B5%8B%E8%AF%95 => 测试
      * @param {string} param 要解码的字符串 eg:%E6%B5%8B%E8%AF%95
      */
-    function decode_url_param(param) {
+    function decodeUrlParam(param) {
         try {
             return decodeURIComponent(param);
         } catch (e) {
@@ -1511,14 +1512,14 @@
      * 将参数对象转为查询字符串 eg: {a:1,b:2} => a=1&b=2
      * @param {object} obj 参数对象 eg: {a:1,b:2}
      */
-    function to_param_str(obj) {
+    function joinUrlParams(obj) {
         if (!obj) return "";
         if (typeof obj == "string") return obj;
 
         var tmp = [];
 
         Object.forEach(obj, function (k, v) {
-            if (v != undefined && typeof v != "function") tmp.push(encode_url_param(k) + "=" + encode_url_param(v));
+            if (v != undefined && typeof v != "function") tmp.push(encodeUrlParam(k) + "=" + encodeUrlParam(v));
         });
 
         return tmp.join("&");
@@ -1528,11 +1529,11 @@
      * 连接url和查询字符串(支持传入对象)
      * @param {string} url URL地址
      */
-    function join_url(url) {
+    function joinUrl(url) {
         var params = [], args = arguments;
         for (var i = 1, len = args.length; i < len; i++) {
             var param = args[i];
-            if (param) params.push(to_param_str(param));
+            if (param) params.push(joinUrlParams(param));
         }
 
         var index = url.indexOf("#"), hash = "";
@@ -1553,7 +1554,7 @@
      * 解析url参数 eg:url?id=1
      * @param {string} search 查询字符串 eg: ?id=1
      */
-    function parse_url_params(search) {
+    function parseUrlParams(search) {
         if (!search) return {};
 
         var i = search.indexOf("?");
@@ -1574,7 +1575,7 @@
                 key = kv[0],
                 value = kv[1];
 
-            if (key) map[decode_url_param(key)] = value ? decode_url_param(value) : "";
+            if (key) map[decodeUrlParam(key)] = value ? decodeUrlParam(value) : "";
         }
 
         return map;
@@ -1584,10 +1585,10 @@
      * 转换或解析查询字符串
      * @param {string|object} obj 为string类型时将解析为参数对象，否则将转换为查询字符串
      */
-    function process_url_param(obj) {
+    function processUrlParam(obj) {
         if (obj == undefined) return;
 
-        return typeof obj == "string" ? parse_url_params(obj) : to_param_str(obj);
+        return typeof obj == "string" ? parseUrlParams(obj) : joinUrlParams(obj);
     }
 
     var DEF_LOC = GLOBAL.location || { protocol: "", hash: "", pathname: "" };
@@ -1596,7 +1597,7 @@
      * 解析URL路径 => {href,origin,protocol,host,hostname,port,pathname,search,hash}
      * @param {string} url URL地址
      */
-    function parse_url(url) {
+    function parseUrl(url) {
         //return new URL(url);
 
         var m = url.match(/(^[^:]*:)?\/\/([^:\/]+)(:\d+)?(.*)$/),
@@ -1629,7 +1630,7 @@
      * 解析 URL hash值 eg:#net/config!/wan  => {nav:"#net/config",param:"wan"}
      * @param {string} hash eg:#net/config!/wan
      */
-    function parse_url_hash(hash) {
+    function parseUrlHash(hash) {
         if (!hash) hash = DEF_LOC.hash;
         //可能对后续处理造成影响,比如 param 中有/等转码字符
         //if(hash) hash = decode_url_param(hash);
@@ -1652,7 +1653,7 @@
      * @param {string} path eg: /app.html?id=1#aa
      * @param {boolean} keepQueryHash 是否保留查询字符串和Hash字符串,默认为false
      */
-    function get_page_name(path, keepQueryHash) {
+    function getPageName(path, keepQueryHash) {
         var pathname = (path || DEF_LOC.pathname).replace(/\\/g, "/"),
             start = pathname.lastIndexOf("/") + 1;
 
@@ -1662,6 +1663,18 @@
         if (end == -1) end = pathname.indexOf("#", start);
 
         return end != -1 ? pathname.slice(start, end) : pathname.slice(start);
+    }
+
+    /**
+     * 解析JSON，解析失败时返回undefined
+     * @param {string} text 要解析的JSON字符串
+     */
+    function parseJSON(text) {
+        if (!text || typeof text !== 'string') return text;
+
+        try {
+            return JSON.parse(text);
+        } catch (err) { }
     }
 
     //---------------------- export ----------------------
@@ -1732,14 +1745,16 @@
         parseLevel: parseLevel,
         formatSize: formatSize,
 
-        parseUrlParams: parse_url_params,
-        joinUrlParams: to_param_str,
-        param: process_url_param,
-        join: join_url,
+        parseUrlParams: parseUrlParams,
+        joinUrlParams: joinUrlParams,
+        param: processUrlParam,
+        join: joinUrl,
 
-        parseUrl: parse_url,
-        parseHash: parse_url_hash,
-        getPageName: get_page_name,
+        parseUrl: parseUrl,
+        parseHash: parseUrlHash,
+        getPageName: getPageName,
+
+        parseJSON: parseJSON,
 
         Listener: Listener,
         SE: SE
@@ -2327,7 +2342,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/07/02 17:49
+* update:2021/09/22 16:18
 */
 (function () {
     var Url = require('url'),
@@ -2396,7 +2411,7 @@
     /**
      * 发送http请求
      * @param {string} url 请求地址
-     * @param {object} ops 请求配置项
+     * @param {object} ops 请求配置项 {queue,type,headers,timeout,dataType,data,opts,agent,retryCount,proxy,res,autoHeader,complete}
      * @param {number} count 当前请求次数，默认为0
      */
     function sendHttp(url, ops, count) {
@@ -2478,15 +2493,19 @@
                 is_auto_header = Q.def(ops.autoHeader, is_http_proxy ? true : false),
                 _res = ops.res;
 
-            if (_res) {
-                if (is_auto_header) {
-                    Object.forEach(res.headers, function (k, v) {
-                        if (res.headers[k] != undefined) _res.setHeader(k, v);
-                    });
-                } else {
-                    var content_type = res.headers['content-type'] || 'text/html';
-                    if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
-                    _res.setHeader('Content-Type', content_type);
+            if (_res && !res._ended) {
+                try {
+                    if (is_auto_header) {
+                        Object.forEach(res.headers, function (k, v) {
+                            if (res.headers[k] != undefined) _res.setHeader(k, v);
+                        });
+                    } else {
+                        var content_type = res.headers['content-type'] || 'text/html';
+                        if (content_type.indexOf('charset') == -1) content_type += (content_type.endsWith(';') ? '' : ';') + 'charset=utf-8';
+                        _res.setHeader('Content-Type', content_type);
+                    }
+                } catch (err) {
+                    throw new Error(err.message + '\n' + url);
                 }
             }
 
@@ -2752,13 +2771,91 @@
         return req;
     }
 
+    /**
+     * 将 http 请求转为 curl命令
+     * @param {string} url 
+     * @param {object} ops 请求配置项 {type,headers,timeout,data,ua,auth,cookie,keepalive,enableRedirect,maxRedirects,iface,proxy}
+     * @returns {string}
+     */
+    function http2curl(url, ops) {
+        ops = ops || {};
+
+        var method = ops.type || ops.method || 'GET',
+            headers = ops.headers || {},
+            timeout = ops.timeout || config.timeout,
+
+            is_http_get = method == 'GET',
+            is_http_post = method == 'POST',
+
+            data = ops.data,
+            post_data = '';
+
+        if (is_http_post) {
+            if (data) post_data = typeof data == 'string' ? data : querystring.stringify(data);
+        } else {
+            if (data) url = Q.join(url, data);
+        }
+
+        if (config.headers) extend(headers, config.headers);
+
+        var curl = ['curl -X ' + method];
+
+        //启用服务器重定向
+        if (ops.enableRedirect && is_http_get) {
+            curl.push('-L');
+
+            //最大重定向次数
+            var maxRedirects = +ops.maxRedirects || 3;
+            curl.push('--max-redirs ' + maxRedirects);
+        }
+
+        //跳过 ssl 检测
+        if (ops.skipSSL) curl.push('-k');
+
+        var dataAuth = ops.auth;
+        if (dataAuth && dataAuth.user) curl.push('--user ' + dataAuth.user.replace(/"/g, '\\"') + ':' + (dataAuth.passwd || '').replace(/"/g, '\\"'));
+
+        if (is_http_post) curl.push('-d "' + post_data + '"');
+        else curl.push('"' + url + '"');
+
+        //设置 UserAgent eg: curl -A 'myua' url
+        if (ops.ua) curl.push('-A "' + ops.ua.replace(/"/g, '\\"') + '"');
+
+        //设置 Cookie eg: curl -b 'a=1;b=2' url
+        if (ops.cookie && typeof ops.cookie == 'string') curl.push('-b "' + ops.cookie.replace(/"/g, '\\"') + '"');
+
+        //设置网卡
+        if (ops.iface) curl.push('--interface "' + ops.iface + '"');
+
+        //设置代理
+        if (ops.proxy) curl.push('--proxy "' + ops.proxy + '"');
+
+        //静默输出（不显示进度信息）
+        if (ops.silent !== false) curl.push('--silent');
+
+        if (timeout) curl.push('--max-time ' + Math.round(timeout / 1000));
+        if (ops.keepalive === false) curl.push('--no-keepalive');
+
+        //curl 其它参数，多个之间用空格分开
+        if (ops.curlArgs) curl.push(ops.curlArgs);
+
+        Object.forEach(headers, function (k, v) {
+            curl.push('-H "' + k + ':' + v + '"');
+        });
+
+        return curl.join(' ');
+    }
+
     extend(Q, {
         httpSetup: setup,
+
         http: sendHttp,
         getHttp: getHttp,
         postHttp: postHttp,
         getJSON: getJSON,
         postJSON: postJSON,
-        downloadFile: downloadFile
+
+        downloadFile: downloadFile,
+        http2curl: http2curl
     });
 })();
