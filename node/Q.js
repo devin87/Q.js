@@ -2180,7 +2180,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2020/07/22 20:47
+* update:2021/09/28 14:39
 */
 (function () {
     var fs = require('fs'),
@@ -2189,37 +2189,28 @@
 
         extend = Q.extend;
 
-    function mkdirSync(url, mode, callback) {
-        if (url == "..") return callback && callback();
+    function mkdirSync(url, mode) {
+        if (url == '..' || url == './') return;
 
-        url = path.normalize(url).replace(/\\/g, '/');
-        if (url != "/" && url.endsWith("/")) url = url.slice(0, -1);
-
-        var arr = url.split("/");
-
-        //处理 ./aaa
-        if (arr[0] === ".") arr.shift();
-
-        //处理 ../ddd/d
-        if (arr[0] == "..") arr.splice(0, 2, path.join(arr[0], arr[1]));
-
-        mode = mode || 493;  //0755
-
-        function inner(dir) {
-            //不存在就创建一个
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, mode);
-
-            if (arr.length) {
-                inner(path.join(dir, arr.shift()));
-            } else {
-                callback && callback();
-            }
+        var fullname = path.resolve(url), last_fullname, dirs = [];
+        while (!fs.existsSync(fullname) && fullname != last_fullname) {
+            dirs.push(fullname);
+            last_fullname = fullname;
+            fullname = path.dirname(fullname);
         }
+        if (dirs.length <= 0) return;
 
-        arr.length && inner(arr.shift());
+        mode = mode || 511;  //0777
+
+        for (var i = dirs.length - 1; i >= 0; i--) {
+            fs.mkdirSync(dirs[i], mode);
+        }
     }
 
-    //确保文件夹存在
+    /**
+     * 递归创建文件夹，若文件夹存在，则忽略
+     * @param {string} dir 文件夹路径
+     */
     function mkdir(dir) {
         if (!fs.existsSync(dir)) mkdirSync(dir);
     }
