@@ -2,7 +2,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2021/09/28 14:39
+* update:2022/04/13 18:12
 */
 (function () {
     var fs = require('fs'),
@@ -29,23 +29,23 @@
         }
     }
 
+    var fse = require('fs-extra');
+
     /**
      * 递归创建文件夹，若文件夹存在，则忽略
      * @param {string} dir 文件夹路径
      */
     function mkdir(dir) {
+        if (fs.existsSync(dir)) return;
+
+        try {
+            //创建文件夹优先使用 fs-extra 方法
+            //注: fs-extra 9.0 及以上递归创建文件夹报错 eg: /a/b/c
+            if (fse) fse.mkdirsSync(dir);
+        } catch (err) { }
+
         if (!fs.existsSync(dir)) mkdirSync(dir);
     }
-
-    //创建文件夹优先使用 fs-extra 方法
-    try {
-        var fse = require('fs-extra');
-        if (fse) {
-            mkdir = function mkdir(dir) {
-                if (!fs.existsSync(dir)) fse.mkdirsSync(dir);
-            };
-        }
-    } catch (e) { }
 
     /**
      * 计算文本md5值

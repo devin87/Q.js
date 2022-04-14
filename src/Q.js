@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2021/09/24 11:04
+* update:2022/04/14 11:10
 */
 (function (undefined) {
     "use strict";
@@ -1274,7 +1274,11 @@
             var map = this.map;
 
             if (typeof type == "string") {
-                if (isFunc(fn)) map[type].push(fn);
+                if (isFunc(fn)) {
+                    (type + "").split(",").forEach(function (type) {
+                        map[type].push(fn);
+                    });
+                }
             } else if (isObject(type)) {
                 Object.forEach(type, function (k, v) {
                     if (map[k] && isFunc(v)) map[k].push(v);
@@ -1436,6 +1440,22 @@
      */
     function isHttpURL(url) {
         return RE_HTTP.test(url);
+    }
+
+    /**
+     * 格式化访问地址 eg: 192.168.1.50 => http://192.168.1.50/
+     * @param {string} host IP或访问地址 eg: 192.168.1.50 | http://192.168.1.50
+     */
+    function formatHost(host) {
+        if (!host) return '';
+
+        host = (host + '').trim();
+        if (!host) return '';
+
+        if (!Q.isHttpURL(host)) host = 'http://' + host;
+        if (!host.endsWith('/')) host += '/';
+
+        return host;
     }
 
     /**
@@ -1741,6 +1761,8 @@
         isTel: isTel,
         isMAC: isMAC,
         isHttpURL: isHttpURL,
+
+        formatHost: formatHost,
 
         parseLevel: parseLevel,
         formatSize: formatSize,

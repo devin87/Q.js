@@ -2,7 +2,7 @@
 * Q.js (包括 通用方法、原生对象扩展 等) for browser or Node.js
 * https://github.com/devin87/Q.js
 * author:devin87@qq.com  
-* update:2021/09/24 11:04
+* update:2022/04/14 11:10
 */
 (function (undefined) {
     "use strict";
@@ -1274,7 +1274,11 @@
             var map = this.map;
 
             if (typeof type == "string") {
-                if (isFunc(fn)) map[type].push(fn);
+                if (isFunc(fn)) {
+                    (type + "").split(",").forEach(function (type) {
+                        map[type].push(fn);
+                    });
+                }
             } else if (isObject(type)) {
                 Object.forEach(type, function (k, v) {
                     if (map[k] && isFunc(v)) map[k].push(v);
@@ -1436,6 +1440,22 @@
      */
     function isHttpURL(url) {
         return RE_HTTP.test(url);
+    }
+
+    /**
+     * 格式化访问地址 eg: 192.168.1.50 => http://192.168.1.50/
+     * @param {string} host IP或访问地址 eg: 192.168.1.50 | http://192.168.1.50
+     */
+    function formatHost(host) {
+        if (!host) return '';
+
+        host = (host + '').trim();
+        if (!host) return '';
+
+        if (!Q.isHttpURL(host)) host = 'http://' + host;
+        if (!host.endsWith('/')) host += '/';
+
+        return host;
     }
 
     /**
@@ -1741,6 +1761,8 @@
         isTel: isTel,
         isMAC: isMAC,
         isHttpURL: isHttpURL,
+
+        formatHost: formatHost,
 
         parseLevel: parseLevel,
         formatSize: formatSize,
@@ -2180,7 +2202,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2021/09/28 14:39
+* update:2022/04/13 18:12
 */
 (function () {
     var fs = require('fs'),
@@ -2207,23 +2229,23 @@
         }
     }
 
+    var fse = require('fs-extra');
+
     /**
      * 递归创建文件夹，若文件夹存在，则忽略
      * @param {string} dir 文件夹路径
      */
     function mkdir(dir) {
+        if (fs.existsSync(dir)) return;
+
+        try {
+            //创建文件夹优先使用 fs-extra 方法
+            //注: fs-extra 9.0 及以上递归创建文件夹报错 eg: /a/b/c
+            if (fse) fse.mkdirsSync(dir);
+        } catch (err) { }
+
         if (!fs.existsSync(dir)) mkdirSync(dir);
     }
-
-    //创建文件夹优先使用 fs-extra 方法
-    try {
-        var fse = require('fs-extra');
-        if (fse) {
-            mkdir = function mkdir(dir) {
-                if (!fs.existsSync(dir)) fse.mkdirsSync(dir);
-            };
-        }
-    } catch (e) { }
 
     /**
      * 计算文本md5值
@@ -2333,7 +2355,7 @@
 /*
 * Q.node.http.js http请求(支持https)
 * author:devin87@qq.com
-* update:2021/09/22 16:18
+* update:2021/11/04 16:12
 */
 (function () {
     var Url = require('url'),
@@ -2402,7 +2424,7 @@
     /**
      * 发送http请求
      * @param {string} url 请求地址
-     * @param {object} ops 请求配置项 {queue,type,headers,timeout,dataType,data,opts,agent,retryCount,proxy,res,autoHeader,complete}
+     * @param {object} ops 请求配置项 {queue,type,headers,timeout,dataType,data,opts,agent,retryCount,proxy,res,autoHeader,skipStatusCode,complete}
      * @param {number} count 当前请求次数，默认为0
      */
     function sendHttp(url, ops, count) {
@@ -2512,6 +2534,8 @@
             }
 
             res.on('end', function () {
+                if (ops.skipStatusCode !== false && res.statusCode && res.statusCode != 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error(ops.url + ' => Invalid Status: ' + res.statusCode + (res.statusMessage ? ' ' + res.statusMessage : '')));
+
                 var next = function (err, text) {
                     if (err) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, err);
 
@@ -2523,7 +2547,7 @@
                     try {
                         data = JSON.parse(text);
                     } catch (err) {
-                        return fire_http_complete(undefined, ErrorCode.JSONError, ops, res, err);
+                        return fire_http_complete(undefined, ErrorCode.JSONError, ops, res, new Error(ops.url + ' => Invalid Result: ' + text));
                     }
 
                     fire_http_complete(data, undefined, ops, res);
@@ -2538,7 +2562,7 @@
                 }
             });
         }).on('timeout', function () {
-            fire_timeout(new Error('Socket Timedout'));
+            fire_timeout(new Error(ops.url + ' => Socket Timedout'));
         }).on('error', function (err) {
             //避免重复触发(超时后调用 req.abort 会触发此处 error 事件且 err.code 为 ECONNRESET) 
             if (ops._end) return;
@@ -2557,10 +2581,10 @@
         if (timeout && timeout != -1) {
             // req.setTimeout在某些环境需要双倍时间才触发超时回调
             // req.setTimeout(timeout, function () {
-            //     fire_timeout(new Error('HTTP Timedout'));
+            //     fire_timeout(new Error(ops.url + ' => HTTP Timedout'));
             // });
             setTimeout(function () {
-                fire_timeout(new Error('HTTP Timedout'));
+                fire_timeout(new Error(ops.url + ' => HTTP Timedout'));
             }, timeout);
         }
 
@@ -2645,7 +2669,7 @@
      * @param {string} url 下载地址
      * @param {string} dest 保存路径
      * @param {function} cb 回调函数(data, errCode)
-     * @param {object} ops 其它配置项 { timeout: 600000, progress: function(total,loaded){} }
+     * @param {object} ops 其它配置项 {headers,timeout,opts,agent,retryCount,skipStatusCode,progress:function(total,loaded){}}
      * @param {number} count 当前请求次数，默认为0
      */
     function downloadFile(url, dest, cb, ops, count) {
@@ -2661,7 +2685,8 @@
 
         try {
             //格式化url
-            url = encodeURI(decodeURI(url));
+            ops.url = decodeURI(url);
+            url = encodeURI(ops.url);
         } catch (err) { }
 
         var headers = ops.headers || {},
@@ -2704,7 +2729,7 @@
         };
 
         req = web.get(options, function (res) {
-            if (res.statusCode !== 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error('Http code: ' + res.statusCode));
+            if (ops.skipStatusCode !== false && res.statusCode && res.statusCode != 200) return fire_http_complete(undefined, ErrorCode.HttpError, ops, res, new Error(ops.url + ' => Invalid Status: ' + res.statusCode + (res.statusMessage ? ' ' + res.statusMessage : '')));
 
             var file = fs.createWriteStream(dest);
             res.pipe(file);
@@ -2732,7 +2757,7 @@
                 });
             }
         }).on('timeout', function () {
-            fire_timeout(new Error('Socket Timedout'));
+            fire_timeout(new Error(ops.url + ' => Socket Timedout'));
         }).on('error', function (err) {
             //避免重复触发(超时后调用 req.abort 会触发此处 error 事件且 err.code 为 ECONNRESET) 
             if (ops._end) return;
@@ -2752,10 +2777,10 @@
 
         if (timeout && timeout != -1) {
             // req.setTimeout(timeout, function () {
-            //     fire_timeout(new Error('HTTP Timedout'));
+            //     fire_timeout(new Error(ops.url + ' => HTTP Timedout'));
             // });
             setTimeout(function () {
-                fire_timeout(new Error('HTTP Timedout'));
+                fire_timeout(new Error(ops.url + ' => HTTP Timedout'));
             }, timeout);
         }
 
@@ -2803,11 +2828,28 @@
         //跳过 ssl 检测
         if (ops.skipSSL) curl.push('-k');
 
+        //静默输出（不显示进度信息）
+        if (ops.silent !== false) curl.push('-s');
+
+        //显示错误（即使启用了静默模式）
+        if (ops.showError !== false) curl.push('-S');
+
+        //引用地址
+        if (ops.referer) curl.push('-e "' + ops.referer + '"');
+
+        //用户和密码
         var dataAuth = ops.auth;
-        if (dataAuth && dataAuth.user) curl.push('--user ' + dataAuth.user.replace(/"/g, '\\"') + ':' + (dataAuth.passwd || '').replace(/"/g, '\\"'));
+        if (dataAuth && dataAuth.user) curl.push('-u ' + dataAuth.user.replace(/"/g, '\\"') + ':' + (dataAuth.passwd || '').replace(/"/g, '\\"'));
+
+        //请求范围
+        if (ops.range) curl.push('-r ' + ops.range);
+
+        //HEAD请求
+        if (ops.isHead) curl.push('-I');
+
+        curl.push('"' + url + '"');
 
         if (is_http_post) curl.push('-d "' + post_data + '"');
-        else curl.push('"' + url + '"');
 
         //设置 UserAgent eg: curl -A 'myua' url
         if (ops.ua) curl.push('-A "' + ops.ua.replace(/"/g, '\\"') + '"');
@@ -2820,9 +2862,6 @@
 
         //设置代理
         if (ops.proxy) curl.push('--proxy "' + ops.proxy + '"');
-
-        //静默输出（不显示进度信息）
-        if (ops.silent !== false) curl.push('--silent');
 
         if (timeout) curl.push('--max-time ' + Math.round(timeout / 1000));
         if (ops.keepalive === false) curl.push('--no-keepalive');
