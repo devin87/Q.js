@@ -1793,7 +1793,7 @@
 /*
 * Q.Queue.js 队列 for browser or Node.js
 * author:devin87@qq.com
-* update:2021/06/23 12:53
+* update:2022/04/29 10:45
 */
 (function (undefined) {
     "use strict";
@@ -1982,6 +1982,13 @@
 
             //处理任务
             self.process(task, function () {
+                //执行500次回调后改为异步调用，以避免回调过多导致的堆栈溢出错误
+                if (++self._count % 500 == 0) {
+                    return setTimeout(function () {
+                        self.ok(task, QUEUE_TASK_OK);
+                    }, 10);
+                }
+
                 self.ok(task, QUEUE_TASK_OK);
             });
 
@@ -1993,6 +2000,7 @@
             var self = this;
             self.stopped = false;
             if (!self.auto) self.auto = true;
+            self._count = 0
 
             delay(self._run, self, 10);
 
@@ -2202,7 +2210,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2022/04/13 18:12
+* update:2022/04/29 09:03
 */
 (function () {
     var fs = require('fs'),
@@ -2229,7 +2237,11 @@
         }
     }
 
-    var fse = require('fs-extra');
+    var fse;
+
+    try {
+        fse = require('fs-extra');
+    } catch (err) { }
 
     /**
      * 递归创建文件夹，若文件夹存在，则忽略

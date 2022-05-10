@@ -93,7 +93,7 @@
                 console.log(arguments);
             }
         });
-        
+
         for (var i = 0; i < 1; i++) {
             q2.addList({
                 one: function (callback) {
@@ -189,10 +189,34 @@
             }
         });
 
+        var list = [],last_time;
+
+        var q6 = new Q.Queue({
+            auto: false,
+            count: 100000,
+            tasks: Q.arr(100000, 1, 1),
+            injectIndex: 1,
+            exec: function (n, next) {
+                if (n % 1000 == 1) {
+                    var now = Date.now();
+                    if (last_time) log(n + " " + (now - last_time) + "ms");
+                    last_time = now;
+                }
+
+                list.push(n);
+                return next();
+            },
+            complete: function () {
+                log("q6 数据长度: " + list.length);
+                log("q6: all is ok !");
+            }
+        });
+
         var q = new Queue({ injectCallback: "complete" });
         q.addList([q1, q2, q3, q4]);
 
         q.add(q5);
+        q.add(q6);
 
         q.on("end", function (task) {
             log();

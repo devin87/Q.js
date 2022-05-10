@@ -2,7 +2,7 @@
 /*
 * Q.node.core.js 通用处理
 * author:devin87@qq.com
-* update:2022/04/13 18:12
+* update:2022/04/29 09:03
 */
 (function () {
     var fs = require('fs'),
@@ -29,7 +29,11 @@
         }
     }
 
-    var fse = require('fs-extra');
+    var fse;
+
+    try {
+        fse = require('fs-extra');
+    } catch (err) { }
 
     /**
      * 递归创建文件夹，若文件夹存在，则忽略
